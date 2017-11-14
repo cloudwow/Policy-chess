@@ -11,7 +11,7 @@ import tensorflow as tf
 TRAIN_DIRECTORY = './data_train'
 VALIDATION_DIRECTORY = './data_validation'
 LABELS_DIRECTORY = './labels'
-BATCH_SIZE = 50
+BATCH_SIZE = 500
 IMAGE_SIZE = 8
 FEATURE_PLANES = 8
 LABEL_SIZE = 6100
@@ -206,8 +206,9 @@ def main():
         for plane, label in train_dataset:
             batch_data.append(plane)
             batch_labels.append(label)
-        if len(batch_data) == 0:
-            print("zero size train dataset")
+        if len(batch_data) != BATCH_SIZE:
+            print("bad sizes train dataset")
+            print(len(batch_data))
             continue
 
         feed_dict = {tf_train_dataset: batch_data, tf_train_labels: batch_labels}
@@ -230,7 +231,7 @@ def main():
             # print('Validation accuracy: %.1f%%' % accuracy(
             #       predictions_valid[0], batch_valid_labels))
         # save progress every 500 iterations
-        if step % 100 == 0 and step > 0:
+        if step % 500 == 0 and step > 0:
             print("saving model")
             saver.save(sess, 'logdir/chess-dqn', global_step=step)
 
