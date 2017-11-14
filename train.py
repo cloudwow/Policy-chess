@@ -83,7 +83,9 @@ tf_train_labels = tf.placeholder(tf.float32,
 # Training computation.
 logits = model(tf_train_dataset)
 loss = tf.reduce_mean(
-    tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels))
+    tf.nn.softmax_cross_entropy_with_logits(
+        logits=logits,
+        labels=tf_train_labels))
 
 # Optimizer.
 optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
@@ -140,8 +142,12 @@ def read_labels(directory, pattern):
 def reformat(datas, labels):
     games = list(datas)[0]
     for game in games:
-        board_state = (game.split(":")[0]).replace("/", "")
-        label_state = (game.split(":")[1]).replace("\n", "")
+        try:
+            board_state = (game.split(":")[0]).replace("/", "")
+            label_state = (game.split(":")[1]).replace("\n", "")
+        except:
+            print("error parsing game: '"+game+"'")
+            continue
         label = np.zeros(LABEL_SIZE)
         for i in range(LABEL_SIZE):
             if(label_state == labels[i]):
@@ -193,37 +199,40 @@ def main():
     labels = read_labels(LABELS_DIRECTORY, "*.txt")
     print('Training...')
     for step in range(NUM_STEPS):
-        try:
-            train_batch = generate_batch(BATCH_SIZE, TRAIN_DIRECTORY, "*.txt")
-            train_dataset = reformat(train_batch, labels)
-            batch_data = []
-            batch_labels = []
-            for plane, label in train_dataset:
-                batch_data.append(plane)
-                batch_labels.append(label)
-            feed_dict = {tf_train_dataset: batch_data, tf_train_labels: batch_labels}
-            _, l, predictions = sess.run(
-              [optimizer, loss, train_prediction], feed_dict=feed_dict)
-            if (step % 100 == 0):
-                print('Minibatch loss at step %d: %f' % (step, l))
-                print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
-                # We check accuracy with the validation data set
-                validation_batch = generate_batch(BATCH_SIZE, VALIDATION_DIRECTORY, "*.txt")
-                validation_dataset = reformat(validation_batch, labels)
-                batch_valid_data = []
-                batch_valid_labels = []
-                for plane, label in validation_dataset:
-                    batch_valid_data.append(plane)
-                    batch_valid_labels.append(label)
-                feed_dict_valid = {tf_train_dataset: batch_valid_data}
-                predictions_valid = sess.run([train_prediction], feed_dict=feed_dict_valid)
-                print('Validation accuracy: %.1f%%' % accuracy(
-                      predictions_valid[0], batch_valid_labels))
-            # save progress every 500 iterations
-            if step % 500 == 0 and step > 0:
-                saver.save(sess, 'logdir/chess-dqn', global_step=step)
-        except Exception:
-            pass
+        train_batch = generate_batch(BATCH_SIZE, TRAIN_DIRECTORY, "*.txt")
+        train_dataset = reformat(train_batch, labels)
+        batch_data = []
+        batch_labels = []
+        for plane, label in train_dataset:
+            batch_data.append(plane)
+            batch_labels.append(label)
+        if len(batch_data) == 0:
+            print("zero size train dataset")
+            continue
+
+        feed_dict = {tf_train_dataset: batch_data, tf_train_labels: batch_labels}
+        _, l, predictions = sess.run(
+          [optimizer, loss, train_prediction], feed_dict=feed_dict)
+        if (step % 100 == 0 and step > 0):
+            print('Minibatch loss at step %d: %f' % (step, l))
+            print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
+            
+            # We check accuracy with the validation data set
+            # validation_batch = generate_batch(BATCH_SIZE, VALIDATION_DIRECTORY, "*.txt")
+            # validation_dataset = reformat(validation_batch, labels)
+            # batch_valid_data = []
+            # batch_valid_labels = []
+            # for plane, label in validation_dataset:
+            #     batch_valid_data.append(plane)
+            #     batch_valid_labels.append(label)
+            # feed_dict_valid = {tf_train_dataset: batch_valid_data}
+            # predictions_valid = sess.run([train_prediction], feed_dict=feed_dict_valid)
+            # print('Validation accuracy: %.1f%%' % accuracy(
+            #       predictions_valid[0], batch_valid_labels))
+        # save progress every 500 iterations
+        if step % 100 == 0 and step > 0:
+            print("saving model")
+            saver.save(sess, 'logdir/chess-dqn', global_step=step)
 
 
 if __name__ == '__main__':

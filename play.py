@@ -8,6 +8,7 @@ import numpy as np
 import tensorflow as tf
 
 import chess.pgn
+import atexit
 
 LABELS_DIRECTORY = './labels'
 IMAGE_SIZE = 8
@@ -170,7 +171,8 @@ def main():
     labels = read_labels(LABELS_DIRECTORY, "*.txt")
     print('\nPlaying...\nComputer plays white.\n')
     board = chess.Board()
-    while(not board.is_game_over()):
+    quit = False
+    while(not quit and not board.is_game_over()):
         # We get the movement prediction
         game_state = reformat(board.fen())
         feed_dict = {tf_prediction: game_state}
@@ -207,12 +209,19 @@ def main():
                     moved = True
                 else:
                     print ("That is NOT a valid movement :(.")
+            except EOFError:
+                quit = True
+                break
             except:
                 print ("but that is NOT a valid movement :(.")
     print("\nEnd of the game.")
     print("Game result:")
     print(board.result())
 
+def quit_gracefully():
+    print('Bye')
+
+atexit.register(quit_gracefully)
 
 if __name__ == '__main__':
     main()
