@@ -113,8 +113,11 @@ def find_files(directory, pattern):
 
 
 def _read_text(filename, batch_size):
-    with open(filename) as f:
-        return random.sample(f.readlines(), batch_size)
+    with open(filename) as f_in:
+        lines = (line.rstrip() for line in f_in)
+        # drop empty lines
+        lines = list(line for line in lines if line)
+        return random.sample(lines, batch_size)
 
 
 def generate_batch(batch_size, directory, pattern):
