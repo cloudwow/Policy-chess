@@ -9,7 +9,7 @@ import tensorflow as tf
 
 import chess.pgn
 import atexit
-
+import model
 LABELS_DIRECTORY = './labels'
 IMAGE_SIZE = 8
 FEATURE_PLANES = 8
@@ -20,64 +20,7 @@ HIDDEN = 512
 labels = []
 
 
-def weight_variable(shape):
-    initial = tf.truncated_normal(shape, stddev=0.01)
-    return tf.Variable(initial)
-
-
-def bias_variable(shape):
-    initial = tf.constant(0.01, shape=shape)
-    return tf.Variable(initial)
-
-
-def conv2d(x, W, stride):
-    return tf.nn.conv2d(x, W, strides=[1, stride, stride, 1], padding="SAME")
-
-
-def max_pool_2x2(x):
-    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
-
-
-def model(data):
-    # network weights
-    W_conv1 = weight_variable([IMAGE_SIZE, IMAGE_SIZE, FEATURE_PLANES, FILTERS])
-    b_conv1 = bias_variable([FILTERS])
-
-    W_conv2 = weight_variable([5, 5, FILTERS, FILTERS])
-    b_conv2 = bias_variable([FILTERS])
-
-    W_conv3 = weight_variable([3, 3, FILTERS, FILTERS])
-    b_conv3 = bias_variable([FILTERS])
-
-    W_fc1 = weight_variable([HIDDEN, HIDDEN])
-    b_fc1 = bias_variable([HIDDEN])
-
-    W_fc2 = weight_variable([HIDDEN, LABEL_SIZE])
-    b_fc2 = bias_variable([LABEL_SIZE])
-
-    # hidden layers
-    h_conv1 = tf.nn.relu(conv2d(data, W_conv1, 1) + b_conv1)
-    h_conv2 = tf.nn.relu(conv2d(h_conv1, W_conv2, 3) + b_conv2)
-    h_conv3 = tf.nn.relu(conv2d(h_conv2, W_conv3, 1) + b_conv3)
-    h_pool3 = max_pool_2x2(h_conv3)
-    h_flat = tf.reshape(h_pool3, [-1, HIDDEN])
-    h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
-
-    # readout layer
-    readout = tf.matmul(h_fc1, W_fc2) + b_fc2
-    return readout
-
-
-# Input data.
-tf_prediction = tf.placeholder(tf.float32,
-                                  shape=(None,
-                                  IMAGE_SIZE,
-                                  IMAGE_SIZE,
-                                  FEATURE_PLANES))
-
-# Training computation.
-logits = model(tf_prediction)
-
+tf_prediction, logits = model.model(1)
 # Predictions for the model.
 train_prediction = tf.nn.softmax(logits)
 
