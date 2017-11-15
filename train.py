@@ -20,16 +20,34 @@ HIDDEN = 512
 NUM_STEPS = 150001
 
 labels = []
+def variable_summaries(var):
+  """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
+  with tf.name_scope('summaries'):
+    mean = tf.reduce_mean(var)
+    tf.summary.scalar('mean', mean)
+    with tf.name_scope('stddev'):
+      stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+    tf.summary.scalar('stddev', stddev)
+    tf.summary.scalar('max', tf.reduce_max(var))
+    tf.summary.scalar('min', tf.reduce_min(var))
+    tf.summary.histogram('histogram', var)
 
 
 def weight_variable(shape):
-    initial = tf.truncated_normal(shape, stddev=0.01)
-    return tf.Variable(initial)
+    with tf.name_scope('weights'):
+        initial = tf.truncated_normal(shape, stddev=0.01)
+        result = tf.Variable(initial)
+        variable_summaries(result)
+        return result
 
 
 def bias_variable(shape):
-    initial = tf.constant(0.01, shape=shape)
-    return tf.Variable(initial)
+    with tf.name_scope('biases'):
+
+        initial = tf.constant(0.01, shape=shape)
+        result = tf.Variable(initial)
+        variable_summaries(result)
+        return result
 
 
 def conv2d(x, W, stride):
@@ -58,12 +76,22 @@ def model(data):
     b_fc2 = bias_variable([LABEL_SIZE])
 
     # hidden layers
-    h_conv1 = tf.nn.relu(conv2d(data, W_conv1, 1) + b_conv1)
-    h_conv2 = tf.nn.relu(conv2d(h_conv1, W_conv2, 3) + b_conv2)
-    h_conv3 = tf.nn.relu(conv2d(h_conv2, W_conv3, 1) + b_conv3)
-    h_pool3 = max_pool_2x2(h_conv3)
-    h_flat = tf.reshape(h_pool3, [-1, HIDDEN])
-    h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
+    with tf.name_scope("conv_1"):
+
+        h_conv1 = tf.nn.relu(conv2d(data, W_conv1, 1) + b_conv1)
+    with tf.name_scope("conv_2"):
+
+        h_conv2 = tf.nn.relu(conv2d(h_conv1, W_conv2, 3) + b_conv2)
+    with tf.name_scope("conv_3"):
+
+        h_conv3 = tf.nn.relu(conv2d(h_conv2, W_conv3, 1) + b_conv3)
+    with tf.name_scope("pool"):
+
+        h_pool3 = max_pool_2x2(h_conv3)
+        h_flat = tf.reshape(h_pool3, [-1, HIDDEN])
+    with tf.name_scope("fc_1"):
+
+        h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
 
     # readout layer
     readout = tf.matmul(h_fc1, W_fc2) + b_fc2
@@ -82,11 +110,15 @@ tf_train_labels = tf.placeholder(tf.float32,
 
 # Training computation.
 logits = model(tf_train_dataset)
-loss = tf.reduce_mean(
-    tf.nn.softmax_cross_entropy_with_logits(
+with tf.name_scope('cross_entropy'):
+  diff =  tf.nn.softmax_cross_entropy_with_logits(
         logits=logits,
-        labels=tf_train_labels))
+        labels=tf_train_labels)
+  with tf.name_scope('total'):
+      loss = tf.reduce_mean(diff)
 
+
+tf.summary.scalar('cross_entropy', loss)
 # Optimizer.
 optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
 
@@ -96,6 +128,13 @@ train_prediction = tf.nn.softmax(logits)
 # Initialize session all variables
 sess = tf.InteractiveSession()
 saver = tf.train.Saver()
+
+# Merge all the summaries and write them out to /tmp/mnist_logs (by default)
+merged = tf.summary.merge_all()
+train_writer = tf.summary.FileWriter('logdir/train',
+                                      sess.graph)
+test_writer = tf.summary.FileWriter('logdir/test')
+
 sess.run(tf.initialize_all_variables())
 checkpoint = tf.train.get_checkpoint_state("logdir")
 if checkpoint and checkpoint.model_checkpoint_path:
@@ -215,24 +254,32 @@ def main():
             continue
 
         feed_dict = {tf_train_dataset: batch_data, tf_train_labels: batch_labels}
-        _, l, predictions = sess.run(
-          [optimizer, loss, train_prediction], feed_dict=feed_dict)
+        summary, _, l, predictions = sess.run(
+          [merged, optimizer, loss, train_prediction], feed_dict=feed_dict)
+        train_writer.add_summary(summary, step)
         if (step % 100 == 0 and step > 0):
+
             print('Minibatch loss at step %d: %f' % (step, l))
             print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
             
             # We check accuracy with the validation data set
-            # validation_batch = generate_batch(BATCH_SIZE, VALIDATION_DIRECTORY, "*.txt")
-            # validation_dataset = reformat(validation_batch, labels)
-            # batch_valid_data = []
-            # batch_valid_labels = []
-            # for plane, label in validation_dataset:
-            #     batch_valid_data.append(plane)
-            #     batch_valid_labels.append(label)
-            # feed_dict_valid = {tf_train_dataset: batch_valid_data}
-            # predictions_valid = sess.run([train_prediction], feed_dict=feed_dict_valid)
-            # print('Validation accuracy: %.1f%%' % accuracy(
-            #       predictions_valid[0], batch_valid_labels))
+            validation_batch = generate_batch(BATCH_SIZE, VALIDATION_DIRECTORY, "*.txt")
+            validation_dataset = reformat(validation_batch, labels)
+            batch_valid_data = []
+            batch_valid_labels = []
+            for plane, label in validation_dataset:
+                batch_valid_data.append(plane)
+                batch_valid_labels.append(label)
+            if len(batch_valid_data) != BATCH_SIZE:
+                print("bad sizes validation dataset")
+                print(len(batch_valid_data))
+                continue
+            feed_dict_valid = {tf_train_dataset: batch_valid_data, tf_train_labels: batch_valid_labels}
+            summary, l, predictions_valid = sess.run([merged, loss, train_prediction], feed_dict=feed_dict_valid)
+            test_writer.add_summary(summary, step)
+
+            print('Validation accuracy: %.1f%%' % accuracy(
+                predictions_valid, batch_valid_labels))
         # save progress every 500 iterations
         if step % 500 == 0 and step > 0:
             print("saving model")
