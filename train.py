@@ -26,7 +26,7 @@ tf_train_labels = tf.placeholder(tf.float32,
                                  LABEL_SIZE))
 
 # Training computation.
-tf_train_dataset, logits = model.model()
+tf_train_dataset, logits = model.model(BATCH_SIZE)
 with tf.name_scope('cross_entropy'):
   diff =  tf.nn.softmax_cross_entropy_with_logits(
         logits=logits,
