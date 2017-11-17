@@ -8,7 +8,7 @@ from PIL import Image, ImageTk
 class BoardGuiTk(tk.Frame):
     pieces = {}
     selected = None
-    selected_piece = None
+    selected_piece = -1
     hilighted = []
     icons = {}
 
@@ -52,9 +52,10 @@ class BoardGuiTk(tk.Frame):
         self.button_quit.pack(side=tk.RIGHT, in_=self.statusbar)
         self.statusbar.pack(expand=False, fill="x", side='bottom')
 
-
     def click(self, event):
 
+        if self.chessboard.is_game_over():
+            return;
         # Figure out which square we've clicked
         col_size = row_size = event.widget.master.square_size
 
@@ -62,41 +63,45 @@ class BoardGuiTk(tk.Frame):
         current_row = 7 - (event.y / row_size)
 
         position = current_row * 8+ current_column 
-        piece = self.chessboard.piece_at(position)
 
-        if self.selected_piece:
-           did_move= self.move(self.selected_piece, position)
+        print("click at %d-%d" % (current_row, current_column))
+        if self.selected_piece != -1:
+            print("selected piece %s" % (str(self.selected_piece)))
+
+            did_move= self.move(self.selected_piece, position)
              
-           self.selected_piece = None
-           self.pieces = {}
-           if did_move:
-               self.hilighted = []
-           else:
-               self.hilighted.pop()
+            self.selected_piece = -1
+            self.pieces = {}
+            if did_move:
+                self.hilighted = []
+            else:
+                self.hilighted.pop()
 
-           self.refresh()
-           self.draw_pieces()
-           self.refresh()
-           if did_move:
+            self.refresh()
+            self.draw_pieces()
+            self.refresh()
+            if did_move and not self.chessboard.is_game_over():
                self.bot_move()
         else :
-            self.highted = []
+            self.hilighted = []
             self.hilight(position)
             self.draw_pieces()
             self.refresh()
 
     def bot_move(self):
-        move=bot.get_move( self.chessboard)
+        moves=bot.get_moves( self.chessboard)
+        move, score = moves[0]
         self.hilighted =[move.from_square, move.to_square]
         self.chessboard.push(move)
         self.draw_pieces()
         self.refresh()
         
-
-        
     def move(self, p1, p2):
         piece = self.chessboard.piece_at(p1)
-        move = chess.Move(p1,p2)
+        move = chess.Move(p1, p2)
+        if piece.symbol().lower() == "p" and (p2 / 8 == 0 or p2 / 8 == 7):
+            print("promoting to queen")
+            move.promotion = chess.QUEEN
         if self.chessboard.is_legal(move):
             self.chessboard.push(move)
             self.label_status["text"] = " " + ( "white" if piece.color else "black") +": "+ str(move)
@@ -106,12 +111,14 @@ class BoardGuiTk(tk.Frame):
             
             return False
 
-
     def hilight(self, pos):
         piece = self.chessboard.piece_at(pos)
+        print("hilight piece: %s" % str(piece))
         if piece is not None and (piece.color == self.chessboard.turn):
             self.selected_piece = pos
             self.hilighted.append(pos)
+        else:
+            print("bad piece")
 
     def addpiece(self, name, image, row=0, column=0):
         '''Add a piece to the playing board'''

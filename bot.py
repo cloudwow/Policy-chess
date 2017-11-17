@@ -110,14 +110,25 @@ def reformat(game):
 
 labels = read_labels(LABELS_DIRECTORY, "*.txt")
 
-def get_move(board):
+
+def get_moves(board):
     # We get the movement prediction
     game_state = reformat(board.fen())
     feed_dict = {tf_prediction: game_state}
     predictions = sess.run([train_prediction], feed_dict=feed_dict)
+    print(len(predictions[0][0]))
     legal_moves = []
     for move in board.legal_moves:
         legal_moves.append(board.san(move))
     legal_labels = [int(mov in legal_moves) for mov in labels]
-    move_san = labels[np.argmax(predictions[0] * legal_labels)]
-    return board.parse_san(move_san)
+    derp = {}
+    for index in range(0,6100):
+        if legal_labels[index] == 1:
+            derp[board.parse_san(labels[index])] = predictions[0][0][index]
+
+    # move_san = labels[np.argmax(predictions[0] * legal_labels)]
+    result = sorted(derp.iteritems(), key=lambda (k, v): (-v, k))
+    for k, v in result:
+        print("%s %f" % (k, v))
+    return result
+
