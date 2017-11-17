@@ -23,7 +23,7 @@ class BoardGuiTk(tk.Frame):
         return (self.columns * self.square_size,
                 self.rows * self.square_size)
 
-    def __init__(self, parent, chessboard, square_size=64):
+    def __init__(self, parent, chessboard, square_size=128):
 
         self.chessboard = chessboard
         self.square_size = square_size
@@ -65,15 +65,20 @@ class BoardGuiTk(tk.Frame):
         piece = self.chessboard.piece_at(position)
 
         if self.selected_piece:
-            self.move(self.selected_piece, position)
-            self.selected_piece = None
-            self.hilighted = []
-            self.pieces = {}
-            self.refresh()
-            self.draw_pieces()
-            self.refresh()
+           did_move= self.move(self.selected_piece, position)
+             
+           self.selected_piece = None
+           self.pieces = {}
+           if did_move:
+               self.hilighted = []
+           else:
+               self.hilighted.pop()
 
-            self.bot_move()
+           self.refresh()
+           self.draw_pieces()
+           self.refresh()
+           if did_move:
+               self.bot_move()
         else :
             self.highted = []
             self.hilight(position)
@@ -91,11 +96,15 @@ class BoardGuiTk(tk.Frame):
         
     def move(self, p1, p2):
         piece = self.chessboard.piece_at(p1)
-        dest_piece = self.chessboard.piece_at(p2)
-        if dest_piece is None or dest_piece.color != piece.color:
-            move = chess.Move(p1,p2)
+        move = chess.Move(p1,p2)
+        if self.chessboard.is_legal(move):
             self.chessboard.push(move)
             self.label_status["text"] = " " + ( "white" if piece.color else "black") +": "+ str(move)
+            return True
+        else:
+            self.label_status["text"] = "BAD"
+            
+            return False
 
 
     def hilight(self, pos):
