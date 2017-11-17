@@ -10,12 +10,7 @@ import tensorflow as tf
 import chess.pgn
 import atexit
 import model
-LABELS_DIRECTORY = './labels'
-IMAGE_SIZE = 8
-FEATURE_PLANES = 8
-LABEL_SIZE = 6100
-FILTERS = 128
-HIDDEN = 512
+import constants
 
 labels = []
 
@@ -76,27 +71,27 @@ def reformat(game):
     # All pieces plane
     board_pieces = list(board_state.split(" ")[0])
     board_pieces = [ord(val) for val in board_pieces]
-    board_pieces = np.reshape(board_pieces, (IMAGE_SIZE, IMAGE_SIZE))
+    board_pieces = np.reshape(board_pieces, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # Only spaces plane
     board_blank = [int(val == '1') for val in board_state.split(" ")[0]]
-    board_blank = np.reshape(board_blank, (IMAGE_SIZE, IMAGE_SIZE))
+    board_blank = np.reshape(board_blank, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # Only white plane
     board_white = [int(val.isupper()) for val in board_state.split(" ")[0]]
-    board_white = np.reshape(board_white, (IMAGE_SIZE, IMAGE_SIZE))
+    board_white = np.reshape(board_white, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # Only black plane
     board_black = [int(not val.isupper() and val != '1') for val in board_state.split(" ")[0]]
-    board_black = np.reshape(board_black, (IMAGE_SIZE, IMAGE_SIZE))
+    board_black = np.reshape(board_black, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # One-hot integer plane current player turn
     current_player = board_state.split(" ")[1]
-    current_player = np.full((IMAGE_SIZE, IMAGE_SIZE), int(current_player == 'w'), dtype=int)
+    current_player = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(current_player == 'w'), dtype=int)
     # One-hot integer plane extra data
     extra = board_state.split(" ")[4]
-    extra = np.full((IMAGE_SIZE, IMAGE_SIZE), int(extra), dtype=int)
+    extra = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(extra), dtype=int)
     # One-hot integer plane move number
     move_number = board_state.split(" ")[5]
-    move_number = np.full((IMAGE_SIZE, IMAGE_SIZE), int(move_number), dtype=int)
+    move_number = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(move_number), dtype=int)
     # Zeros plane
-    zeros = np.full((IMAGE_SIZE, IMAGE_SIZE), 0, dtype=int)
+    zeros = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), 0, dtype=int)
 
     planes = np.vstack((np.copy(board_pieces),
                         np.copy(board_white),
@@ -106,12 +101,12 @@ def reformat(game):
                         np.copy(extra),
                         np.copy(move_number),
                         np.copy(zeros)))
-    planes = np.reshape(planes, (1, IMAGE_SIZE, IMAGE_SIZE, FEATURE_PLANES))
+    planes = np.reshape(planes, (1, constants.IMAGE_SIZE, constants.IMAGE_SIZE, constants.FEATURE_PLANES))
     return planes
 
 
 def main():
-    labels = read_labels(LABELS_DIRECTORY, "*.txt")
+    labels = read_labels(constants.LABELS_DIRECTORY, "*.txt")
     print('\nPlaying...\nComputer plays white.\n')
     board = chess.Board()
     quit = False

@@ -7,17 +7,7 @@ import fnmatch
 import random
 import numpy as np
 import tensorflow as tf
-
-TRAIN_DIRECTORY = './data_train'
-VALIDATION_DIRECTORY = './data_validation'
-LABELS_DIRECTORY = './labels'
-BATCH_SIZE = 50
-IMAGE_SIZE = 8
-FEATURE_PLANES = 8
-LABEL_SIZE = 6100
-FILTERS = 128
-HIDDEN = 512
-NUM_STEPS = 150001
+import constants
 
 labels = []
 
@@ -63,24 +53,24 @@ def model(batch_size):
     # network weights
     data_placeholder = tf.placeholder(tf.float32,
                                       shape=(batch_size,
-                                             IMAGE_SIZE,
-                                             IMAGE_SIZE,
-                                             FEATURE_PLANES))
+                                             constants.IMAGE_SIZE,
+                                             constants.IMAGE_SIZE,
+                                             constants.FEATURE_PLANES))
 
-    W_conv1 = weight_variable([IMAGE_SIZE, IMAGE_SIZE, FEATURE_PLANES, FILTERS])
-    b_conv1 = bias_variable([FILTERS])
+    W_conv1 = weight_variable([constants.IMAGE_SIZE, constants.IMAGE_SIZE, constants.FEATURE_PLANES, constants.FILTERS])
+    b_conv1 = bias_variable([constants.FILTERS])
 
-    W_conv2 = weight_variable([5, 5, FILTERS, FILTERS])
-    b_conv2 = bias_variable([FILTERS])
+    W_conv2 = weight_variable([5, 5, constants.FILTERS, constants.FILTERS])
+    b_conv2 = bias_variable([constants.FILTERS])
 
-    W_conv3 = weight_variable([3, 3, FILTERS, FILTERS])
-    b_conv3 = bias_variable([FILTERS])
+    W_conv3 = weight_variable([3, 3, constants.FILTERS, constants.FILTERS])
+    b_conv3 = bias_variable([constants.FILTERS])
 
-    W_fc1 = weight_variable([HIDDEN, HIDDEN])
-    b_fc1 = bias_variable([HIDDEN])
+    W_fc1 = weight_variable([constants.HIDDEN, constants.HIDDEN])
+    b_fc1 = bias_variable([constants.HIDDEN])
 
-    W_fc2 = weight_variable([HIDDEN, LABEL_SIZE])
-    b_fc2 = bias_variable([LABEL_SIZE])
+    W_fc2 = weight_variable([constants.HIDDEN, constants.LABEL_SIZE])
+    b_fc2 = bias_variable([constants.LABEL_SIZE])
 
     # hidden layers
     with tf.name_scope("conv_1"):
@@ -91,7 +81,7 @@ def model(batch_size):
         h_conv3 = tf.nn.relu(conv2d(h_conv2, W_conv3, 1) + b_conv3)
     with tf.name_scope("pool"):
         h_pool3 = max_pool_2x2(h_conv3)
-        h_flat = tf.reshape(h_pool3, [-1, HIDDEN])
+        h_flat = tf.reshape(h_pool3, [-1, constants.HIDDEN])
     with tf.name_scope("fc_1"):
         h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
 

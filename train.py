@@ -8,25 +8,15 @@ import random
 import numpy as np
 import tensorflow as tf
 import model
-
-TRAIN_DIRECTORY = './data_train'
-VALIDATION_DIRECTORY = './data_validation'
-LABELS_DIRECTORY = './labels'
-BATCH_SIZE = 50
-IMAGE_SIZE = 8
-FEATURE_PLANES = 8
-LABEL_SIZE = 6100
-FILTERS = 128
-HIDDEN = 512
-NUM_STEPS = 150001
+import constants
 
 labels = []
 tf_train_labels = tf.placeholder(tf.float32,
-                                 shape=(BATCH_SIZE,
-                                 LABEL_SIZE))
+                                 shape=(constants.BATCH_SIZE,
+                                 constants.LABEL_SIZE))
 
 # Training computation.
-tf_train_dataset, logits = model.model(BATCH_SIZE)
+tf_train_dataset, logits = model.model(constants.BATCH_SIZE)
 with tf.name_scope('cross_entropy'):
   diff =  tf.nn.softmax_cross_entropy_with_logits(
         logits=logits,
@@ -48,12 +38,12 @@ saver = tf.train.Saver()
 
 # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
 merged = tf.summary.merge_all()
-train_writer = tf.summary.FileWriter('logdir/train',
+train_writer = tf.summary.FileWriter(constants.LOGDIR + '/train',
                                       sess.graph)
-test_writer = tf.summary.FileWriter('logdir/test')
+test_writer = tf.summary.FileWriter(constants.LOGDIR + '/test')
 
 sess.run(tf.initialize_all_variables())
-checkpoint = tf.train.get_checkpoint_state("logdir")
+checkpoint = tf.train.get_checkpoint_state(constants.CHECKPOINT_DIRECTORY )
 if checkpoint and checkpoint.model_checkpoint_path:
     saver.restore(sess, checkpoint.model_checkpoint_path)
     print ("Successfully loaded:", checkpoint.model_checkpoint_path)
@@ -107,35 +97,35 @@ def reformat(datas, labels):
         except:
             print("error parsing game: '"+game+"'")
             continue
-        label = np.zeros(LABEL_SIZE)
-        for i in range(LABEL_SIZE):
+        label = np.zeros(constants.LABEL_SIZE)
+        for i in range(constants.LABEL_SIZE):
             if(label_state == labels[i]):
                 label[i] = 1.
 
         # All pieces plane
         board_pieces = list(board_state.split(" ")[0])
         board_pieces = [ord(val) for val in board_pieces]
-        board_pieces = np.reshape(board_pieces, (IMAGE_SIZE, IMAGE_SIZE))
+        board_pieces = np.reshape(board_pieces, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
         # Only spaces plane
         board_blank = [int(val == '1') for val in board_state.split(" ")[0]]
-        board_blank = np.reshape(board_blank, (IMAGE_SIZE, IMAGE_SIZE))
+        board_blank = np.reshape(board_blank, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
         # Only white plane
         board_white = [int(val.isupper()) for val in board_state.split(" ")[0]]
-        board_white = np.reshape(board_white, (IMAGE_SIZE, IMAGE_SIZE))
+        board_white = np.reshape(board_white, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
         # Only black plane
         board_black = [int(not val.isupper() and val != '1') for val in board_state.split(" ")[0]]
-        board_black = np.reshape(board_black, (IMAGE_SIZE, IMAGE_SIZE))
+        board_black = np.reshape(board_black, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
         # One-hot integer plane current player turn
         current_player = board_state.split(" ")[1]
-        current_player = np.full((IMAGE_SIZE, IMAGE_SIZE), int(current_player == 'w'), dtype=int)
+        current_player = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(current_player == 'w'), dtype=int)
         # One-hot integer plane extra data
         extra = board_state.split(" ")[4]
-        extra = np.full((IMAGE_SIZE, IMAGE_SIZE), int(extra), dtype=int)
+        extra = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(extra), dtype=int)
         # One-hot integer plane move number
         move_number = board_state.split(" ")[5]
-        move_number = np.full((IMAGE_SIZE, IMAGE_SIZE), int(move_number), dtype=int)
+        move_number = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(move_number), dtype=int)
         # Zeros plane
-        zeros = np.full((IMAGE_SIZE, IMAGE_SIZE), 0, dtype=int)
+        zeros = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), 0, dtype=int)
 
         planes = np.vstack((np.copy(board_pieces),
                             np.copy(board_white),
@@ -145,7 +135,7 @@ def reformat(datas, labels):
                             np.copy(extra),
                             np.copy(move_number),
                             np.copy(zeros)))
-        planes = np.reshape(planes, (IMAGE_SIZE, IMAGE_SIZE, FEATURE_PLANES))
+        planes = np.reshape(planes, (constants.IMAGE_SIZE, constants.IMAGE_SIZE, constants.FEATURE_PLANES))
         yield (planes, label)
 
 
@@ -155,17 +145,17 @@ def accuracy(predictions, labels):
 
 
 def main():
-    labels = read_labels(LABELS_DIRECTORY, "*.txt")
+    labels = read_labels(constants.LABELS_DIRECTORY, "*.txt")
     print('Training...')
-    for step in range(NUM_STEPS):
-        train_batch = generate_batch(BATCH_SIZE, TRAIN_DIRECTORY, "*.txt")
+    for step in range(constants.NUM_STEPS):
+        train_batch = generate_batch(constants.BATCH_SIZE, constants.TRAIN_DIRECTORY, "*.txt")
         train_dataset = reformat(train_batch, labels)
         batch_data = []
         batch_labels = []
         for plane, label in train_dataset:
             batch_data.append(plane)
             batch_labels.append(label)
-        if len(batch_data) != BATCH_SIZE:
+        if len(batch_data) != constants.BATCH_SIZE:
             print("bad sizes train dataset")
             print(len(batch_data))
             continue
@@ -180,14 +170,14 @@ def main():
             print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
             
             # We check accuracy with the validation data set
-            validation_batch = generate_batch(BATCH_SIZE, VALIDATION_DIRECTORY, "*.txt")
+            validation_batch = generate_batch(constants.BATCH_SIZE, constants.VALIDATION_DIRECTORY, "*.txt")
             validation_dataset = reformat(validation_batch, labels)
             batch_valid_data = []
             batch_valid_labels = []
             for plane, label in validation_dataset:
                 batch_valid_data.append(plane)
                 batch_valid_labels.append(label)
-            if len(batch_valid_data) != BATCH_SIZE:
+            if len(batch_valid_data) != constants.BATCH_SIZE:
                 print("bad sizes validation dataset")
                 print(len(batch_valid_data))
                 continue
@@ -200,7 +190,7 @@ def main():
         # save progress every 500 iterations
         if step % 100 == 0 and step > 0:
             print("saving model")
-            saver.save(sess, 'logdir/chess-dqn', global_step=step)
+            saver.save(sess, constants.CHECKPOINT_DIRECTORY + '/chess-dqn', global_step=step)
 
 
 if __name__ == '__main__':
