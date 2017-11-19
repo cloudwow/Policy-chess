@@ -18,16 +18,20 @@ tf_train_labels = tf.placeholder(tf.float32,
 # Training computation.
 tf_train_dataset, logits = model.model(constants.BATCH_SIZE)
 with tf.name_scope('cross_entropy'):
-  diff =  tf.nn.softmax_cross_entropy_with_logits(
-        logits=logits,
-        labels=tf_train_labels)
+  diff = tf.nn.softmax_cross_entropy_with_logits(
+      logits=logits,
+      labels=tf_train_labels)
   with tf.name_scope('total'):
-      loss = tf.reduce_mean(diff)
+    loss = tf.reduce_mean(diff)
 
+global_step_tensor = tf.Variable(0, name='global_step',trainable=False)
 
 tf.summary.scalar('cross_entropy', loss)
+global_step_tensor = tf.Variable(0,name='global_step',trainable=False)
+     
 # Optimizer.
-optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
+optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss, global_step=global_step_tensor)
+# optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
 
 # Predictions for the training, validation, and test data.
 train_prediction = tf.nn.softmax(logits)
@@ -55,7 +59,7 @@ def find_files(directory, pattern):
     for root, dirnames, filenames in os.walk(directory):
         for filename in fnmatch.filter(filenames, pattern):
             files.append(os.path.join(root, filename))
-    return files
+            return files
 
 
 def _read_text(filename, batch_size):
@@ -164,6 +168,8 @@ def main():
         summary, _, l, predictions = sess.run(
           [merged, optimizer, loss, train_prediction], feed_dict=feed_dict)
         train_writer.add_summary(summary, step)
+        global_step = tf.train.global_step(sess, global_step_tensor)
+        print("global step: %d" % global_step)
         if (step % 100 == 0 and step > 0):
 
             print('Minibatch loss at step %d: %f' % (step, l))
@@ -188,9 +194,9 @@ def main():
             print('Validation accuracy: %.1f%%' % accuracy(
                 predictions_valid, batch_valid_labels))
         # save progress every 500 iterations
-        if step % 100 == 0 and step > 0:
+        if step % 10 == 0 and step > 0:
             print("saving model")
-            saver.save(sess, constants.CHECKPOINT_DIRECTORY + '/chess-dqn', global_step=step)
+            saver.save(sess, constants.CHECKPOINT_DIRECTORY + '/chess-dqn', global_step=global_step)
 
 
 if __name__ == '__main__':
