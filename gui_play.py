@@ -5,6 +5,7 @@ import bot
 import Tkinter as tk
 from PIL import Image, ImageTk
 
+
 class BoardGuiTk(tk.Frame):
     pieces = {}
     selected = None
@@ -20,8 +21,7 @@ class BoardGuiTk(tk.Frame):
 
     @property
     def canvas_size(self):
-        return (self.columns * self.square_size,
-                self.rows * self.square_size)
+        return (self.columns * self.square_size, self.rows * self.square_size)
 
     def __init__(self, parent, chessboard, square_size=128):
 
@@ -44,32 +44,32 @@ class BoardGuiTk(tk.Frame):
         self.button_quit = tk.Button(self.statusbar, text="New", fg="black", command=self.reset)
         self.button_quit.pack(side=tk.LEFT, in_=self.statusbar)
 
-        
         self.label_status = tk.Label(self.statusbar, text="   White's turn  ", fg="black")
         self.label_status.pack(side=tk.LEFT, expand=0, in_=self.statusbar)
 
-        self.button_quit = tk.Button(self.statusbar, text="Quit", fg="black", command=self.parent.destroy)
+        self.button_quit = tk.Button(
+            self.statusbar, text="Quit", fg="black", command=self.parent.destroy)
         self.button_quit.pack(side=tk.RIGHT, in_=self.statusbar)
         self.statusbar.pack(expand=False, fill="x", side='bottom')
 
     def click(self, event):
 
         if self.chessboard.is_game_over():
-            return;
+            return
         # Figure out which square we've clicked
         col_size = row_size = event.widget.master.square_size
 
         current_column = event.x / col_size
         current_row = 7 - (event.y / row_size)
 
-        position = current_row * 8+ current_column 
+        position = current_row * 8 + current_column
 
         print("click at %d-%d" % (current_row, current_column))
         if self.selected_piece != -1:
             print("selected piece %s" % (str(self.selected_piece)))
 
-            did_move= self.move(self.selected_piece, position)
-             
+            did_move = self.move(self.selected_piece, position)
+
             self.selected_piece = -1
             self.pieces = {}
             if did_move:
@@ -81,21 +81,20 @@ class BoardGuiTk(tk.Frame):
             self.draw_pieces()
             self.refresh()
             if did_move and not self.chessboard.is_game_over():
-               self.bot_move()
-        else :
+                self.bot_move()
+        else:
             self.hilighted = []
             self.hilight(position)
             self.draw_pieces()
             self.refresh()
 
     def bot_move(self):
-        moves=bot.get_moves( self.chessboard)
-        move, score = moves[0]
-        self.hilighted =[move.from_square, move.to_square]
+        move = bot.get_move(self.chessboard)
+        self.hilighted = [move.from_square, move.to_square]
         self.chessboard.push(move)
         self.draw_pieces()
         self.refresh()
-        
+
     def move(self, p1, p2):
         piece = self.chessboard.piece_at(p1)
         move = chess.Move(p1, p2)
@@ -104,11 +103,12 @@ class BoardGuiTk(tk.Frame):
             move.promotion = chess.QUEEN
         if self.chessboard.is_legal(move):
             self.chessboard.push(move)
-            self.label_status["text"] = " " + ( "white" if piece.color else "black") +": "+ str(move)
+            self.label_status["text"] = " " + ("white"
+                                               if piece.color else "black") + ": " + str(move)
             return True
         else:
             self.label_status["text"] = "BAD"
-            
+
             return False
 
     def hilight(self, pos):
@@ -122,21 +122,21 @@ class BoardGuiTk(tk.Frame):
 
     def addpiece(self, name, image, row=0, column=0):
         '''Add a piece to the playing board'''
-        self.canvas.create_image(0,0, image=image, tags=(name, "piece"), anchor="c")
+        self.canvas.create_image(0, 0, image=image, tags=(name, "piece"), anchor="c")
         self.placepiece(name, row, column)
 
     def placepiece(self, name, row, column):
         '''Place a piece at the given row/column'''
         self.pieces[name] = (row, column)
-        x0 = (column * self.square_size) + int(self.square_size/2)
-        y0 = ((7-row) * self.square_size) + int(self.square_size/2)
+        x0 = (column * self.square_size) + int(self.square_size / 2)
+        y0 = ((7 - row) * self.square_size) + int(self.square_size / 2)
         self.canvas.coords(name, x0, y0)
 
     def refresh(self, event={}):
         '''Redraw the board'''
         if event:
-            xsize = int((event.width-1) / self.columns)
-            ysize = int((event.height-1) / self.rows)
+            xsize = int((event.width - 1) / self.columns)
+            ysize = int((event.height - 1) / self.rows)
             self.square_size = min(xsize, ysize)
 
         self.canvas.delete("square")
@@ -145,15 +145,18 @@ class BoardGuiTk(tk.Frame):
             color = self.color1 if color == self.color2 else self.color2
             for col in range(self.columns):
                 x1 = (col * self.square_size)
-                y1 = ((7-row) * self.square_size)
+                y1 = ((7 - row) * self.square_size)
                 x2 = x1 + self.square_size
                 y2 = y1 + self.square_size
                 if (self.selected is not None) and (row, col) == self.selected:
-                    self.canvas.create_rectangle(x1, y1, x2, y2, outline="black", fill="orange", tags="square")
-                elif(row * 8 +  col in self.hilighted):
-                    self.canvas.create_rectangle(x1, y1, x2, y2, outline="black", fill="spring green", tags="square")
+                    self.canvas.create_rectangle(
+                        x1, y1, x2, y2, outline="black", fill="orange", tags="square")
+                elif (row * 8 + col in self.hilighted):
+                    self.canvas.create_rectangle(
+                        x1, y1, x2, y2, outline="black", fill="spring green", tags="square")
                 else:
-                    self.canvas.create_rectangle(x1, y1, x2, y2, outline="black", fill=color, tags="square")
+                    self.canvas.create_rectangle(
+                        x1, y1, x2, y2, outline="black", fill=color, tags="square")
                 color = self.color1 if color == self.color2 else self.color2
         for name in self.pieces:
             self.placepiece(name, self.pieces[name][0], self.pieces[name][1])
@@ -163,13 +166,14 @@ class BoardGuiTk(tk.Frame):
     def draw_pieces(self):
         self.canvas.delete("piece")
         for square_index, piece in self.chessboard.piece_map().iteritems():
-            x = square_index / 8 
-            y= square_index % 8 
+            x = square_index / 8
+            y = square_index % 8
             if piece is not None:
-                filename = "img/%s%s.png" % ("white" if piece.color else  "black", piece.symbol().lower())
+                filename = "img/%s%s.png" % ("white"
+                                             if piece.color else "black", piece.symbol().lower())
                 piecename = "%s%s%s" % (piece.symbol(), x, y)
 
-                if(filename not in self.icons):
+                if (filename not in self.icons):
                     self.icons[filename] = ImageTk.PhotoImage(file=filename, width=32, height=32)
 
                 self.addpiece(piecename, self.icons[filename], x, y)
@@ -180,6 +184,7 @@ class BoardGuiTk(tk.Frame):
         self.refresh()
         self.draw_pieces()
         self.refresh()
+
 
 def display(chessboard):
     root = tk.Tk()
@@ -192,6 +197,6 @@ def display(chessboard):
     #root.resizable(0,0)
     root.mainloop()
 
+
 if __name__ == "__main__":
     display(chess.Board())
-

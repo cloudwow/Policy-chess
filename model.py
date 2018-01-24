@@ -46,7 +46,11 @@ def conv2d(x, W, stride):
 
 
 def max_pool_2x2(x):
-    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
+    return tf.nn.max_pool(
+        x,
+        ksize=[1, 2, 2, 1],
+        strides=[1, 2, 2, 1],
+        padding="SAME")
 
 
 def model(batch_size):
@@ -79,14 +83,18 @@ def model(batch_size):
         h_conv2 = tf.nn.relu(conv2d(h_conv1, W_conv2, 3) + b_conv2)
     with tf.name_scope("conv_3"):
         h_conv3 = tf.nn.relu(conv2d(h_conv2, W_conv3, 1) + b_conv3)
+
     with tf.name_scope("pool"):
         h_pool3 = max_pool_2x2(h_conv3)
         h_flat = tf.reshape(h_pool3, [-1, constants.HIDDEN])
     with tf.name_scope("fc_1"):
         h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
+#    with tf.name_scope("fc_1"):
+#        h_flat = tf.reshape(h_conv3, [-1, constants.HIDDEN])
+#        h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
 
-    # readout layer
-        logits = tf.matmul(h_fc1, W_fc2) + b_fc2
+        # readout layer
+    logits = tf.matmul(h_fc1, W_fc2) + b_fc2
 
     return data_placeholder, logits
 

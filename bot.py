@@ -8,8 +8,8 @@ import tensorflow as tf
 import atexit
 import model
 import constants
+import chess
 labels = []
-
 
 tf_prediction, logits = model.model(1)
 # Predictions for the model.
@@ -22,7 +22,7 @@ sess.run(tf.initialize_all_variables())
 checkpoint = tf.train.get_checkpoint_state(constants.CHECKPOINT_DIRECTORY)
 if checkpoint and checkpoint.model_checkpoint_path:
     saver.restore(sess, checkpoint.model_checkpoint_path)
-    print ("Successfully loaded:", checkpoint.model_checkpoint_path)
+    print("Successfully loaded:", checkpoint.model_checkpoint_path)
 
 
 def find_files(directory, pattern):
@@ -42,7 +42,7 @@ def read_labels(directory, pattern):
         with open(filename) as f:
             lines = str(f.readlines()[0]).split(" ")
             for label in lines:
-                if(label != " " and label != '\n'):
+                if (label != " " and label != '\n'):
                     labels_array.append(label)
     return labels_array
 
@@ -79,7 +79,8 @@ def reformat(game):
     board_black = np.reshape(board_black, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # One-hot integer plane current player turn
     current_player = board_state.split(" ")[1]
-    current_player = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(current_player == 'w'), dtype=int)
+    current_player = np.full(
+        (constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(current_player == 'w'), dtype=int)
     # One-hot integer plane extra data
     extra = board_state.split(" ")[4]
     extra = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(extra), dtype=int)
@@ -89,26 +90,65 @@ def reformat(game):
     # Zeros plane
     zeros = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), 0, dtype=int)
 
-    planes = np.vstack((np.copy(board_pieces),
-                        np.copy(board_white),
-                        np.copy(board_black),
-                        np.copy(board_blank),
-                        np.copy(current_player),
-                        np.copy(extra),
-                        np.copy(move_number),
-                        np.copy(zeros)))
+    planes = np.vstack((np.copy(board_pieces), np.copy(board_white), np.copy(board_black),
+                        np.copy(board_blank), np.copy(current_player), np.copy(extra),
+                        np.copy(move_number), np.copy(zeros)))
     planes = np.reshape(planes,
-                        (
-                            1,
-                            constants.IMAGE_SIZE,
-                            constants.IMAGE_SIZE,
-                            constants.FEATURE_PLANES))
+                        (1, constants.IMAGE_SIZE, constants.IMAGE_SIZE, constants.FEATURE_PLANES))
     return planes
+
 
 labels = read_labels(constants.LABELS_DIRECTORY, "*.txt")
 
 
-def get_moves(board):
+def board_value(board, color):
+    value = 0.0
+    for x in range(0, 8):
+        for y in range(0, 8):
+            piece = board.piece_at(chess.square(x, y))
+            piece_value = 0.0
+            if piece == None:
+                piece_value = 0.0
+            elif piece.piece_type == chess.PAWN:
+                piece_value = 1.0
+            elif piece.piece_type == chess.ROOK:
+                piece_value = 6.0
+            elif piece.piece_type == chess.KNIGHT:
+                piece_value = 4.5
+            elif piece.piece_type == chess.BISHOP:
+                piece_value = 4.5
+            elif piece.piece_type == chess.QUEEN:
+                piece_value = 9.0
+            elif piece.piece_type == chess.KING:
+                piece_value = 9999.0
+
+            if piece and piece.color != color:
+                piece_value = -piece_value
+            value += piece_value
+    return value
+
+
+def get_move(board):
+    whose_turn = board.turn
+    best_move = None
+    best_score = -9999999.0
+    max_width = 4
+    count = 0
+    for move in get_policy_moves(board):
+        move = move[0]
+        board.push(move)
+        value = board_value(board, whose_turn)
+        if best_move == None or value > best_value:
+            best_move = move
+            best_value = value
+        board.pop()
+        count += 1
+        if count >= max_width:
+            break
+    return best_move
+
+
+def get_policy_moves(board):
     # We get the movement prediction
     game_state = reformat(board.fen())
     feed_dict = {tf_prediction: game_state}
@@ -119,7 +159,7 @@ def get_moves(board):
         legal_moves.append(board.san(move))
     legal_labels = [int(mov in legal_moves) for mov in labels]
     derp = {}
-    for index in range(0,6100):
+    for index in range(0, 6100):
         if legal_labels[index] == 1:
             derp[board.parse_san(labels[index])] = predictions[0][0][index]
 
@@ -128,4 +168,3 @@ def get_moves(board):
     for k, v in result:
         print("%s %f" % (k, v))
     return result
-
