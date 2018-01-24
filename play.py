@@ -11,9 +11,9 @@ import chess.pgn
 import atexit
 import model
 import constants
+import bot
 
 labels = []
-
 
 tf_prediction, logits = model.model(1)
 # Predictions for the model.
@@ -26,7 +26,7 @@ sess.run(tf.initialize_all_variables())
 checkpoint = tf.train.get_checkpoint_state("logdir")
 if checkpoint and checkpoint.model_checkpoint_path:
     saver.restore(sess, checkpoint.model_checkpoint_path)
-    print ("Successfully loaded:", checkpoint.model_checkpoint_path)
+    print("Successfully loaded:", checkpoint.model_checkpoint_path)
 
 
 def find_files(directory, pattern):
@@ -46,7 +46,7 @@ def read_labels(directory, pattern):
         with open(filename) as f:
             lines = str(f.readlines()[0]).split(" ")
             for label in lines:
-                if(label != " " and label != '\n'):
+                if (label != " " and label != '\n'):
                     labels_array.append(label)
     return labels_array
 
@@ -71,37 +71,48 @@ def reformat(game):
     # All pieces plane
     board_pieces = list(board_state.split(" ")[0])
     board_pieces = [ord(val) for val in board_pieces]
-    board_pieces = np.reshape(board_pieces, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
+    board_pieces = np.reshape(board_pieces,
+                              (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # Only spaces plane
     board_blank = [int(val == '1') for val in board_state.split(" ")[0]]
-    board_blank = np.reshape(board_blank, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
+    board_blank = np.reshape(board_blank,
+                             (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # Only white plane
     board_white = [int(val.isupper()) for val in board_state.split(" ")[0]]
-    board_white = np.reshape(board_white, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
+    board_white = np.reshape(board_white,
+                             (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # Only black plane
-    board_black = [int(not val.isupper() and val != '1') for val in board_state.split(" ")[0]]
-    board_black = np.reshape(board_black, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
+    board_black = [
+        int(not val.isupper() and val != '1')
+        for val in board_state.split(" ")[0]
+    ]
+    board_black = np.reshape(board_black,
+                             (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # One-hot integer plane current player turn
     current_player = board_state.split(" ")[1]
-    current_player = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(current_player == 'w'), dtype=int)
+    current_player = np.full(
+        (constants.IMAGE_SIZE, constants.IMAGE_SIZE),
+        int(current_player == 'w'),
+        dtype=int)
     # One-hot integer plane extra data
     extra = board_state.split(" ")[4]
-    extra = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(extra), dtype=int)
+    extra = np.full(
+        (constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(extra), dtype=int)
     # One-hot integer plane move number
     move_number = board_state.split(" ")[5]
-    move_number = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(move_number), dtype=int)
+    move_number = np.full(
+        (constants.IMAGE_SIZE, constants.IMAGE_SIZE),
+        int(move_number),
+        dtype=int)
     # Zeros plane
     zeros = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), 0, dtype=int)
 
-    planes = np.vstack((np.copy(board_pieces),
-                        np.copy(board_white),
-                        np.copy(board_black),
-                        np.copy(board_blank),
-                        np.copy(current_player),
-                        np.copy(extra),
-                        np.copy(move_number),
-                        np.copy(zeros)))
-    planes = np.reshape(planes, (1, constants.IMAGE_SIZE, constants.IMAGE_SIZE, constants.FEATURE_PLANES))
+    planes = np.vstack((np.copy(board_pieces), np.copy(board_white),
+                        np.copy(board_black), np.copy(board_blank),
+                        np.copy(current_player), np.copy(extra),
+                        np.copy(move_number), np.copy(zeros)))
+    planes = np.reshape(planes, (1, constants.IMAGE_SIZE, constants.IMAGE_SIZE,
+                                 constants.FEATURE_PLANES))
     return planes
 
 
@@ -110,54 +121,35 @@ def main():
     print('\nPlaying...\nComputer plays white.\n')
     board = chess.Board()
     quit = False
-    while(not quit and not board.is_game_over()):
+    while (not quit and not board.is_game_over()):
         # We get the movement prediction
-        game_state = reformat(board.fen())
-        feed_dict = {tf_prediction: game_state}
-        predictions = sess.run([train_prediction], feed_dict=feed_dict)
-        legal_moves = []
-        for move in board.legal_moves:
-            legal_moves.append(board.san(move))
-        legal_labels = [int(mov in legal_moves) for mov in labels]
-        movement = labels[np.argmax(predictions[0] * legal_labels)]
-        print('The computer wants to move to:', movement)
-        try:
-            if(board.parse_san(movement) in board.legal_moves):
-                print ("and it's a valid movement :).")
-                board.push_san(movement)
-                print("\n")
-                print(board)
-                print("\n")
-            else:
-                print("but that is NOT a valid movement.")
-        except:
-            print ("but that is NOT a valid movement :(.")
+        move = bot.get_move(board)
 
+        game_state = reformat(board.fen())
+        print('The computer wants to move to:', move)
+        board.push(move)
+        legal_moves = list(board.legal_moves)
+        index = 0
+        for legal_move in legal_moves:
+            print(str(index) + " " + str(legal_move))
+            index += 1
+        print(board)
         # we move now
         moved = False
         while not moved:
-            try:
-                movement = raw_input('Enter your movement: ')
-                if(board.parse_san(movement) in board.legal_moves):
-                    print ("That is a valid movement.")
-                    board.push_san(movement)
-                    print("\n")
-                    print(board)
-                    print("\n")
-                    moved = True
-                else:
-                    print ("That is NOT a valid movement :(.")
-            except EOFError:
-                quit = True
-                break
-            except:
-                print ("but that is NOT a valid movement :(.")
+            move_index = int(raw_input('Enter move index: '))
+            board.push(legal_moves[move_index])
+            print(board)
+            moved = True
+
     print("\nEnd of the game.")
     print("Game result:")
     print(board.result())
 
+
 def quit_gracefully():
     print('Bye')
+
 
 atexit.register(quit_gracefully)
 
