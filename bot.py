@@ -11,7 +11,7 @@ import constants
 import chess
 labels = []
 
-tf_prediction, logits = model.model(1)
+tf_prediction, logits = model.model(1, False)
 # Predictions for the model.
 train_prediction = tf.nn.softmax(logits)
 
@@ -189,7 +189,4 @@ def get_policy_moves(board):
 
     # move_san = labels[np.argmax(predictions[0] * legal_labels)]
     result = sorted(derp.iteritems(), key=lambda (k, v): (-v, k))
-    print("*************************************")
-    for k, v in result:
-        print(k, v)
     return result

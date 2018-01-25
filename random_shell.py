@@ -1,7 +1,7 @@
 """Playing script for the network."""
 
 from __future__ import print_function
-
+import random
 import sys
 import os
 import fnmatch
@@ -54,17 +54,12 @@ def main():
         board.push(move)
         legal_moves = list(board.legal_moves)
         index = 0
-        for legal_move in legal_moves:
-            print(str(index) + " " + str(legal_move))
-            index += 1
         render_board(board)
         # we move now
         moved = False
-        while not moved:
-            move_index = int(raw_input('Enter move index: '))
-            board.push(legal_moves[move_index])
-            print(board)
-            moved = True
+        move = random.choice(legal_moves)
+        board.push(move)
+        print(board)
 
     print("\nEnd of the game.")
     print("Game result:")

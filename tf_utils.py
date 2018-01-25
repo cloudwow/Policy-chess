@@ -14,8 +14,9 @@ def _assign_moving_average(orig_val, new_val, momentum, name):
         return tf.assign_add(orig_val, scaled_diff)
 
 
-def batch_norm_layer(net, scope, is_training, decay=0.5):
+def batch_norm_layer(net, is_training, scope, decay=0.9):
     with tf.variable_scope(scope):
+
         return tf.contrib.layers.batch_norm(
             net,
             center=False,
@@ -23,7 +24,7 @@ def batch_norm_layer(net, scope, is_training, decay=0.5):
             is_training=is_training,
             decay=decay,
             zero_debias_moving_mean=True,
-            scope='bn')
+            scope="bn")
 
 
 def _reduced_kernel_size_for_small_input(input_tensor, kernel_size):

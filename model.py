@@ -45,12 +45,7 @@ def conv2d(x, W, stride):
     return tf.nn.conv2d(x, W, strides=[1, stride, stride, 1], padding="SAME")
 
 
-def max_pool_2x2(x):
-    return tf.nn.max_pool(
-        x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
-
-
-def model(batch_size):
+def model(batch_size, is_training):
     # network weights
     data_placeholder = tf.placeholder(
         tf.float32,
@@ -60,22 +55,30 @@ def model(batch_size):
     net = data_placeholder
 
     # hidden layers
-    for i in range(0, 2):
+    for i in range(0, 4):
+        with tf.name_scope("module_" + str(i)):
+            with tf.name_scope("branch_1_" + str(i)):
+                branch_1 = net
+                for j in range(0, 3):
 
-        for j in range(0, 3):
-            with tf.name_scope("conv_" + str(j) + "_" + str(i)):
-                net = tf.nn.relu(tf_utils.conv2d(net, 192, [8, 8], "conv"))
-        for j in range(0, 3):
-            with tf.name_scope("conv_" + str(j) + "_" + str(i)):
-                net = tf.nn.relu(tf_utils.conv2d(net, 64, [3, 3], "conv"))
-        for j in range(0, 3):
-            with tf.name_scope("conv_" + str(j) + "_" + str(i)):
-                net = tf.nn.relu(tf_utils.conv2d(net, 192, [1, 8], "conv"))
-            with tf.name_scope("conv_" + str(j) + "_" + str(i)):
-                net = tf.nn.relu(tf_utils.conv2d(net, 192, [8, 1], "conv"))
+                    branch_1 = tf_utils.conv2d(branch_1, 64, [3, 3], "branch_1")
+            with tf.name_scope("branch_2_" + str(i)):
 
-        with tf.name_scope("pool_" + str(j)):
-            net = max_pool_2x2(net)
+                branch_2 = net
+                for j in range(0, 3):
+                    with tf.name_scope(
+                            "barnch_2_conv_" + str(j) + "_" + str(i)):
+                        branch_2 = tf_utils.conv2d(branch_2, 192, [8, 8],
+                                                   "conv")
+
+                        branch_2 = tf_utils.batch_norm_layer(
+                            branch_2,
+                            is_training,
+                            decay=0.9,
+                            scope="branch_2_batchnorm_" + str(j) + "_" + str(i))
+                        branch_2 = tf.nn.relu(branch_2)
+            net = tf.concat(axis=3, values=[branch_1, branch_2])
+
     net = tf_utils.flatten(net)
     with tf.name_scope("fc_1"):
         net = tf.nn.relu(tf_utils.dense_layer(net, constants.HIDDEN))
