@@ -67,34 +67,48 @@ def reformat(game):
     # All pieces plane
     board_pieces = list(board_state.split(" ")[0])
     board_pieces = [ord(val) for val in board_pieces]
-    board_pieces = np.reshape(board_pieces, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
+    board_pieces = np.reshape(board_pieces,
+                              (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # Only spaces plane
     board_blank = [int(val == '1') for val in board_state.split(" ")[0]]
-    board_blank = np.reshape(board_blank, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
+    board_blank = np.reshape(board_blank,
+                             (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # Only white plane
     board_white = [int(val.isupper()) for val in board_state.split(" ")[0]]
-    board_white = np.reshape(board_white, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
+    board_white = np.reshape(board_white,
+                             (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # Only black plane
-    board_black = [int(not val.isupper() and val != '1') for val in board_state.split(" ")[0]]
-    board_black = np.reshape(board_black, (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
+    board_black = [
+        int(not val.isupper() and val != '1')
+        for val in board_state.split(" ")[0]
+    ]
+    board_black = np.reshape(board_black,
+                             (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
     # One-hot integer plane current player turn
     current_player = board_state.split(" ")[1]
     current_player = np.full(
-        (constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(current_player == 'w'), dtype=int)
+        (constants.IMAGE_SIZE, constants.IMAGE_SIZE),
+        int(current_player == 'w'),
+        dtype=int)
     # One-hot integer plane extra data
     extra = board_state.split(" ")[4]
-    extra = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(extra), dtype=int)
+    extra = np.full(
+        (constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(extra), dtype=int)
     # One-hot integer plane move number
     move_number = board_state.split(" ")[5]
-    move_number = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(move_number), dtype=int)
+    move_number = np.full(
+        (constants.IMAGE_SIZE, constants.IMAGE_SIZE),
+        int(move_number),
+        dtype=int)
     # Zeros plane
     zeros = np.full((constants.IMAGE_SIZE, constants.IMAGE_SIZE), 0, dtype=int)
 
-    planes = np.vstack((np.copy(board_pieces), np.copy(board_white), np.copy(board_black),
-                        np.copy(board_blank), np.copy(current_player), np.copy(extra),
+    planes = np.vstack((np.copy(board_pieces), np.copy(board_white),
+                        np.copy(board_black), np.copy(board_blank),
+                        np.copy(current_player), np.copy(extra),
                         np.copy(move_number), np.copy(zeros)))
-    planes = np.reshape(planes,
-                        (1, constants.IMAGE_SIZE, constants.IMAGE_SIZE, constants.FEATURE_PLANES))
+    planes = np.reshape(planes, (1, constants.IMAGE_SIZE, constants.IMAGE_SIZE,
+                                 constants.FEATURE_PLANES))
     return planes
 
 
@@ -128,16 +142,21 @@ def board_value(board, color):
     return value
 
 
-def get_move(board):
+def recurse_value(board, depth=0, max_depth=4):
+    #print((" " * depth) + str(depth))
+
     whose_turn = board.turn
     best_move = None
     best_score = -9999999.0
     max_width = 4
     count = 0
+    if depth == max_depth:
+        return None, board_value(board, whose_turn)
     for move in get_policy_moves(board):
         move = move[0]
         board.push(move)
-        value = board_value(board, whose_turn)
+        _, value = recurse_value(board, depth + 1, max_depth)
+        value = -value
         if best_move == None or value > best_value:
             best_move = move
             best_value = value
@@ -145,7 +164,12 @@ def get_move(board):
         count += 1
         if count >= max_width:
             break
-    return best_move
+    return best_move, value
+
+
+def get_move(board, max_depth=3):
+    move, _ = recurse_value(board, depth=0, max_depth=max_depth)
+    return move
 
 
 def get_policy_moves(board):
@@ -153,7 +177,7 @@ def get_policy_moves(board):
     game_state = reformat(board.fen())
     feed_dict = {tf_prediction: game_state}
     predictions = sess.run([train_prediction], feed_dict=feed_dict)
-    print(len(predictions[0][0]))
+    #print(len(predictions[0][0]))
     legal_moves = []
     for move in board.legal_moves:
         legal_moves.append(board.san(move))
@@ -165,6 +189,7 @@ def get_policy_moves(board):
 
     # move_san = labels[np.argmax(predictions[0] * legal_labels)]
     result = sorted(derp.iteritems(), key=lambda (k, v): (-v, k))
+    print("*************************************")
     for k, v in result:
-        print("%s %f" % (k, v))
+        print(k, v)
     return result

@@ -8,7 +8,7 @@ import random
 import numpy as np
 import tensorflow as tf
 import constants
-
+import tf_utils
 labels = []
 
 
@@ -47,54 +47,45 @@ def conv2d(x, W, stride):
 
 def max_pool_2x2(x):
     return tf.nn.max_pool(
-        x,
-        ksize=[1, 2, 2, 1],
-        strides=[1, 2, 2, 1],
-        padding="SAME")
+        x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
 
 
 def model(batch_size):
     # network weights
-    data_placeholder = tf.placeholder(tf.float32,
-                                      shape=(batch_size,
-                                             constants.IMAGE_SIZE,
-                                             constants.IMAGE_SIZE,
-                                             constants.FEATURE_PLANES))
+    data_placeholder = tf.placeholder(
+        tf.float32,
+        shape=(batch_size, constants.IMAGE_SIZE, constants.IMAGE_SIZE,
+               constants.FEATURE_PLANES))
 
-    W_conv1 = weight_variable([constants.IMAGE_SIZE, constants.IMAGE_SIZE, constants.FEATURE_PLANES, constants.FILTERS])
-    b_conv1 = bias_variable([constants.FILTERS])
-
-    W_conv2 = weight_variable([5, 5, constants.FILTERS, constants.FILTERS])
-    b_conv2 = bias_variable([constants.FILTERS])
-
-    W_conv3 = weight_variable([3, 3, constants.FILTERS, constants.FILTERS])
-    b_conv3 = bias_variable([constants.FILTERS])
-
-    W_fc1 = weight_variable([constants.HIDDEN, constants.HIDDEN])
-    b_fc1 = bias_variable([constants.HIDDEN])
-
-    W_fc2 = weight_variable([constants.HIDDEN, constants.LABEL_SIZE])
-    b_fc2 = bias_variable([constants.LABEL_SIZE])
+    net = data_placeholder
 
     # hidden layers
-    with tf.name_scope("conv_1"):
-        h_conv1 = tf.nn.relu(conv2d(data_placeholder, W_conv1, 1) + b_conv1)
-    with tf.name_scope("conv_2"):
-        h_conv2 = tf.nn.relu(conv2d(h_conv1, W_conv2, 3) + b_conv2)
-    with tf.name_scope("conv_3"):
-        h_conv3 = tf.nn.relu(conv2d(h_conv2, W_conv3, 1) + b_conv3)
+    for i in range(0, 2):
 
-    with tf.name_scope("pool"):
-        h_pool3 = max_pool_2x2(h_conv3)
-        h_flat = tf.reshape(h_pool3, [-1, constants.HIDDEN])
+        for j in range(0, 3):
+            with tf.name_scope("conv_" + str(j) + "_" + str(i)):
+                net = tf.nn.relu(tf_utils.conv2d(net, 192, [8, 8], "conv"))
+        for j in range(0, 3):
+            with tf.name_scope("conv_" + str(j) + "_" + str(i)):
+                net = tf.nn.relu(tf_utils.conv2d(net, 64, [3, 3], "conv"))
+        for j in range(0, 3):
+            with tf.name_scope("conv_" + str(j) + "_" + str(i)):
+                net = tf.nn.relu(tf_utils.conv2d(net, 192, [1, 8], "conv"))
+            with tf.name_scope("conv_" + str(j) + "_" + str(i)):
+                net = tf.nn.relu(tf_utils.conv2d(net, 192, [8, 1], "conv"))
+
+        with tf.name_scope("pool_" + str(j)):
+            net = max_pool_2x2(net)
+    net = tf_utils.flatten(net)
     with tf.name_scope("fc_1"):
-        h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
+        net = tf.nn.relu(tf_utils.dense_layer(net, constants.HIDDEN))
+
+
 #    with tf.name_scope("fc_1"):
 #        h_flat = tf.reshape(h_conv3, [-1, constants.HIDDEN])
 #        h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
 
-        # readout layer
-    logits = tf.matmul(h_fc1, W_fc2) + b_fc2
+# readout layer
+    logits = tf_utils.dense_layer(net, constants.LABEL_SIZE)
 
     return data_placeholder, logits
-
