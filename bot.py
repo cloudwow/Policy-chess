@@ -147,9 +147,10 @@ def recurse_value(board, depth=0, max_depth=4):
 
     whose_turn = board.turn
     best_move = None
-    best_score = -9999999.0
     max_width = 4
+    best_value = -99999.0
     count = 0
+    value = 0
     if depth == max_depth:
         return None, board_value(board, whose_turn)
     for move in get_policy_moves(board):
@@ -167,7 +168,7 @@ def recurse_value(board, depth=0, max_depth=4):
     return best_move, value
 
 
-def get_move(board, max_depth=3):
+def get_move(board, max_depth=5):
     move, _ = recurse_value(board, depth=0, max_depth=max_depth)
     return move
 

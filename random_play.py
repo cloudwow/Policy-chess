@@ -3,6 +3,7 @@
 import random
 import chess
 import bot
+import dumbbot
 import Tkinter as tk
 from PIL import Image, ImageTk
 
@@ -66,14 +67,21 @@ class BoardGuiTk(tk.Frame):
 
         if self.chessboard.turn == chess.WHITE:
             self.bot_move()
-            self.parent.after(1000, self.next_move)
+            self.parent.after(200, self.next_move)
 
         else:
-            self.random_move()
-            self.parent.after(10, self.next_move)
+            self.dumbbot_move()
+            self.parent.after(200, self.next_move)
 
     def bot_move(self):
         move = bot.get_move(self.chessboard)
+        self.hilighted = [move.from_square, move.to_square]
+        self.chessboard.push(move)
+        self.draw_pieces()
+        self.refresh()
+
+    def dumbbot_move(self):
+        move = dumbbot.get_move(self.chessboard)
         self.hilighted = [move.from_square, move.to_square]
         self.chessboard.push(move)
         self.draw_pieces()

@@ -3,3 +3,6 @@
 logdir/
 .idea
 checkpoint*/
+data_train/
+data_validation/
+datasets/

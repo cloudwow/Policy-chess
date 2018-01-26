@@ -32,38 +32,62 @@ def load_generic_text(directory):
     '''Generator that yields text raw from the directory.'''
     files = find_files(directory)
     for filename in files:
-        text = ""
-        k = 0
-        pgn = open(filename)
-        for offset, headers in chess.pgn.scan_headers(pgn):
-            pgn.seek(offset)
-            game = chess.pgn.read_game(pgn)
-            node = game
-            nm = 1
-            while not node.is_end():
-                board_fen = replace_tags(node.board().fen())
-                next_node = node.variation(0)
-                label_san = node.board().san(next_node.move)
-                text += board_fen + ":" + label_san + "\n"
-                nm += 1
-                node = next_node
-            if k % 1000 == 0 and k > 1:
-                print ("Saving file: " + filename + "-" + str(k) + ".txt")
-                y = []
-                for index, item in enumerate(text):
-                    y.append(text[index])
-                y = np.array(y)
-                np.savetxt(filename + "-" + str(k) + ".txt", y.reshape(1, y.shape[0]), delimiter="", newline="\n", fmt="%s")
-                text = ""
-            k += 1
-        pgn.close()
+        load_one_file(filename)
         yield filename
 
 
+def load_one_file(filename):
+    text = ""
+    k = 0
+    pgn = open(filename)
+    for offset, headers in chess.pgn.scan_headers(pgn):
+        pgn.seek(offset)
+        game = chess.pgn.read_game(pgn)
+        node = game
+        nm = 1
+        while not node.is_end():
+            board_fen = replace_tags(node.board().fen())
+            next_node = node.variation(0)
+            label_san = node.board().san(next_node.move)
+            text += board_fen + ":" + label_san + "\n"
+            nm += 1
+            node = next_node
+        if k % 1000 == 0 and k > 1:
+            print("Saving file: " + filename + "-" + str(k) + ".txt")
+            y = []
+            for index, item in enumerate(text):
+                y.append(text[index])
+            y = np.array(y)
+            np.savetxt(
+                filename + "-" + str(k) + ".txt",
+                y.reshape(1, y.shape[0]),
+                delimiter="",
+                newline="\n",
+                fmt="%s")
+            text = ""
+        k += 1
+    if len(text) > 0:
+        print("Saving file: " + filename + "-" + str(k) + ".txt")
+
+        y = []
+        for index, item in enumerate(text):
+            y.append(text[index])
+        y = np.array(y)
+        np.savetxt(
+            filename + "-" + str(k) + ".txt",
+            y.reshape(1, y.shape[0]),
+            delimiter="",
+            newline="\n",
+            fmt="%s")
+        text = ""
+    pgn.close()
+
+
 def main():
-    iterator = load_generic_text("./datasets")
+    iterator = load_generic_text("./datasets/k")
     for filename in iterator:
-        print ("Done with ", filename)
+        print("Done with ", filename)
+    #load_one_file("./datasets/all.pgn")
 
 
 if __name__ == '__main__':
