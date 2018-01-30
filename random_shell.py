@@ -4,6 +4,7 @@ from __future__ import print_function
 import random
 import sys
 import os
+import time
 import fnmatch
 import numpy as np
 import tensorflow as tf
@@ -12,31 +13,44 @@ import chess.pgn
 import atexit
 import constants
 import bot
+import dumbbot
 
 
 def render_board(board):
     last_move = board.peek()
-    for x in range(0, 8):
+    for y in range(7, -1, -1):
         print("\n" + ("--" * 16))
 
         sys.stdout.write("|")
-        for y in range(0, 8):
+        for x in range(0, 8):
+            fill_char = " "
+
             if x == chess.square_file(
                     last_move.to_square) and y == chess.square_rank(
                         last_move.to_square):
                 fill_char = "*"
-            else:
-                fill_char = " "
-            piece = board.piece_at(chess.square(y, x))
+            if x == chess.square_file(
+                    last_move.from_square) and y == chess.square_rank(
+                        last_move.from_square):
+                fill_char = "#"
+            piece = board.piece_at(chess.square(x, y))
+
             if piece:
                 if piece.color == chess.WHITE:
-                    sys.stdout.write(
-                        fill_char + colored(str(piece), "white") + fill_char)
+                    draw_color = "white"
                 else:
-                    sys.stdout.write(
-                        fill_char + colored(str(piece), "green") + fill_char)
+                    draw_color = "green"
+
+                sys.stdout.write(
+                    colored(fill_char + str(piece) + fill_char, draw_color))
+
             else:
-                sys.stdout.write(fill_char * 3)
+                if board.turn == chess.BLACK:
+                    draw_color = "white"
+                else:
+                    draw_color = "green"
+
+                sys.stdout.write(colored(fill_char * 3, draw_color))
             sys.stdout.write("|")
 
     print("\n" + ("-+" * 16))
@@ -52,14 +66,18 @@ def main():
 
         print('The computer wants to move to:', move)
         board.push(move)
-        legal_moves = list(board.legal_moves)
         index = 0
         render_board(board)
-        # we move now
-        moved = False
-        move = random.choice(legal_moves)
-        board.push(move)
-        print(board)
+        time.sleep(2)
+
+        if not board.is_game_over():
+            # we move now
+            moved = False
+            move = bot.get_move(board)
+            board.push(move)
+            render_board(board)
+
+        # print(board)
 
     print("\nEnd of the game.")
     print("Game result:")

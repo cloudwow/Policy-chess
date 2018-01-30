@@ -7,33 +7,54 @@ import fnmatch
 import random
 import numpy as np
 import tensorflow as tf
+from termcolor import colored
+
 import model
 import constants
+import encoder
+import examples
 
 labels = []
-tf_train_labels = tf.placeholder(
+tf_policy_labels = tf.placeholder(
     tf.float32, shape=(constants.BATCH_SIZE, constants.LABEL_SIZE))
+tf_value_labels = tf.placeholder(tf.float32, shape=(constants.BATCH_SIZE, 1))
 
 # Training computation.
-tf_train_dataset, logits = model.model(constants.BATCH_SIZE, True)
+tf_train_dataset, policy_logits, value = model.model(constants.BATCH_SIZE, True)
 with tf.name_scope('cross_entropy'):
-    diff = tf.nn.softmax_cross_entropy_with_logits(
-        logits=logits, labels=tf_train_labels)
-    with tf.name_scope('total'):
-        loss = tf.reduce_mean(diff)
 
+    with tf.name_scope('policy'):
+        policy_diff = tf.nn.softmax_cross_entropy_with_logits(
+            logits=policy_logits, labels=tf_policy_labels)
+        with tf.name_scope('policy_total'):
+            policy_loss = tf.reduce_mean(policy_diff)
+    with tf.name_scope('value'):
+        value_loss = tf.losses.absolute_difference(value, tf_value_labels, 20.0)
+
+    with tf.name_scope('loss_sum'):
+        loss = tf.add(policy_loss, value_loss)
 global_step_tensor = tf.Variable(0, name='global_step', trainable=False)
 
-tf.summary.scalar('cross_entropy', loss)
-global_step_tensor = tf.Variable(0, name='global_step', trainable=False)
+tf.summary.scalar('total_loss', loss)
+tf.summary.scalar('policy_loss', policy_loss)
+tf.summary.scalar('value_loss', value_loss)
+update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
-# Optimizer.
-optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(
-    loss, global_step=global_step_tensor)
+with tf.control_dependencies(update_ops):
+    optimizer = tf.train.AdamOptimizer(
+        learning_rate=0.0001, epsilon=0.1).minimize(
+            loss, global_step=global_step_tensor)
+
 # optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
 
 # Predictions for the training, validation, and test data.
-train_prediction = tf.nn.softmax(logits)
+
+train_prediction = tf.nn.softmax(policy_logits)
+labels_argmax = tf.argmax(tf_policy_labels, 1)
+soft_argmax = tf.argmax(train_prediction, 1)
+correct_prediction = tf.equal(labels_argmax, soft_argmax)
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+tf.summary.scalar('accuracy', accuracy)
 
 # Initialize session all variables
 sess = tf.InteractiveSession()
@@ -51,125 +72,26 @@ if checkpoint and checkpoint.model_checkpoint_path:
     print("Successfully loaded:", checkpoint.model_checkpoint_path)
 
 
-def find_files(directory, pattern):
-    '''Recursively finds all files matching the pattern.'''
-    files = []
-    for root, dirnames, filenames in os.walk(directory):
-        for filename in fnmatch.filter(filenames, pattern):
-            files.append(os.path.join(root, filename))
-            return files
-
-
-def _read_text(filename, batch_size):
-    with open(filename) as f_in:
-        lines = (line.rstrip() for line in f_in)
-        # drop empty lines
-        lines = list(line for line in lines if line)
-        return random.sample(lines, batch_size)
-
-
-def generate_batch(batch_size, directory, pattern):
-    '''Generator that yields text raw from the directory.'''
-    files = find_files(directory, pattern)
-    random.shuffle(files)
-    for filename in files:
-        text = _read_text(filename, batch_size)
-        yield text
-
-
-def read_labels(directory, pattern):
-    '''Generator that yields text raw from the directory.'''
-    files = find_files(directory, pattern)
-    labels_array = []
-    for filename in files:
-        with open(filename) as f:
-            lines = str(f.readlines()[0]).split(" ")
-            for label in lines:
-                if (label != " " and label != '\n'):
-                    labels_array.append(label)
-    return labels_array
-
-
-def reformat(datas, labels):
-    games = list(datas)[0]
-    for game in games:
-        try:
-            board_state = (game.split(":")[0]).replace("/", "")
-            label_state = (game.split(":")[1]).replace("\n", "")
-        except:
-            print("error parsing game: '" + game + "'")
-            continue
-        label = np.zeros(constants.LABEL_SIZE)
-        for i in range(constants.LABEL_SIZE):
-            if (label_state == labels[i]):
-                label[i] = 1.
-
-        # All pieces plane
-        board_pieces = list(board_state.split(" ")[0])
-        board_pieces = [ord(val) for val in board_pieces]
-        board_pieces = np.reshape(board_pieces,
-                                  (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
-        # Only spaces plane
-        board_blank = [int(val == '1') for val in board_state.split(" ")[0]]
-        board_blank = np.reshape(board_blank,
-                                 (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
-        # Only white plane
-        board_white = [int(val.isupper()) for val in board_state.split(" ")[0]]
-        board_white = np.reshape(board_white,
-                                 (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
-        # Only black plane
-        board_black = [
-            int(not val.isupper() and val != '1')
-            for val in board_state.split(" ")[0]
-        ]
-        board_black = np.reshape(board_black,
-                                 (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
-        # One-hot integer plane current player turn
-        current_player = board_state.split(" ")[1]
-        current_player = np.full(
-            (constants.IMAGE_SIZE, constants.IMAGE_SIZE),
-            int(current_player == 'w'),
-            dtype=int)
-        # One-hot integer plane extra data
-        extra = board_state.split(" ")[4]
-        extra = np.full(
-            (constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(extra), dtype=int)
-        # One-hot integer plane move number
-        move_number = board_state.split(" ")[5]
-        move_number = np.full(
-            (constants.IMAGE_SIZE, constants.IMAGE_SIZE),
-            int(move_number),
-            dtype=int)
-        # Zeros plane
-        zeros = np.full(
-            (constants.IMAGE_SIZE, constants.IMAGE_SIZE), 0, dtype=int)
-
-        planes = np.vstack((np.copy(board_pieces), np.copy(board_white),
-                            np.copy(board_black), np.copy(board_blank),
-                            np.copy(current_player), np.copy(extra),
-                            np.copy(move_number), np.copy(zeros)))
-        planes = np.reshape(planes, (constants.IMAGE_SIZE, constants.IMAGE_SIZE,
-                                     constants.FEATURE_PLANES))
-        yield (planes, label)
-
-
 def accuracy(predictions, labels):
     return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1)) /
             predictions.shape[0])
 
 
 def main():
-    labels = read_labels(constants.LABELS_DIRECTORY, "*.txt")
     print('Training...')
-    for step in range(constants.NUM_STEPS):
-        train_batch = generate_batch(constants.BATCH_SIZE,
-                                     constants.TRAIN_DIRECTORY, "*.txt")
-        train_dataset = reformat(train_batch, labels)
+    best_validation_loss = 999.0
+    step = -1
+    validation_batch_iterator = examples.generate_batches(
+        constants.VALIDATION_DIRECTORY)
+    for train_dataset in examples.generate_batches(constants.TRAIN_DIRECTORY):
+        step += 1
         batch_data = []
-        batch_labels = []
-        for plane, label in train_dataset:
+        policy_labels = []
+        value_labels = []
+        for plane, policy_label, value_label in train_dataset:
             batch_data.append(plane)
-            batch_labels.append(label)
+            policy_labels.append(policy_label)
+            value_labels.append([value_label])
         if len(batch_data) != constants.BATCH_SIZE:
             print("bad sizes train dataset")
             print(len(batch_data))
@@ -177,49 +99,62 @@ def main():
 
         feed_dict = {
             tf_train_dataset: batch_data,
-            tf_train_labels: batch_labels
+            tf_policy_labels: policy_labels,
+            tf_value_labels: value_labels
         }
-        summary, _, l, predictions = sess.run(
-            [merged, optimizer, loss, train_prediction], feed_dict=feed_dict)
-        train_writer.add_summary(summary, step)
+        summary, _, l, vl, pl, predictions = sess.run(
+            [
+                merged, optimizer, loss, value_loss, policy_loss,
+                train_prediction
+            ],
+            feed_dict=feed_dict)
         global_step = tf.train.global_step(sess, global_step_tensor)
-        print("global step: %d" % global_step)
-        if (step % 100 == 0 and step > 0):
+        train_writer.add_summary(summary, global_step)
+        #        print("global step: %d" % global_step)
+        if (step % 50 == 0 and step > 0):
 
-            print('Minibatch loss at step %d: %f' % (step, l))
+            print(colored('Minibatch total loss at step %d: %f' % (step, l),
+                          "cyan"))
+            print('Minibatch value loss at step %d: %f' % (step, vl))
+            print('Minibatch policy loss at step %d: %f' % (step, pl))
             print('Minibatch accuracy: %.1f%%' % accuracy(
-                predictions, batch_labels))
+                predictions, policy_labels))
 
             # We check accuracy with the validation data set
-            validation_batch = generate_batch(
-                constants.BATCH_SIZE, constants.VALIDATION_DIRECTORY, "*.txt")
-            validation_dataset = reformat(validation_batch, labels)
+            validation_dataset = validation_batch_iterator.next()
             batch_valid_data = []
-            batch_valid_labels = []
-            for plane, label in validation_dataset:
+            batch_valid_policy_labels = []
+            batch_valid_value_labels = []
+            for plane, policy_label, value_label in validation_dataset:
                 batch_valid_data.append(plane)
-                batch_valid_labels.append(label)
+                batch_valid_policy_labels.append(policy_label)
+                batch_valid_value_labels.append([value_label])
             if len(batch_valid_data) != constants.BATCH_SIZE:
                 print("bad sizes validation dataset")
                 print(len(batch_valid_data))
                 continue
             feed_dict_valid = {
                 tf_train_dataset: batch_valid_data,
-                tf_train_labels: batch_valid_labels
+                tf_policy_labels: batch_valid_policy_labels,
+                tf_value_labels: batch_valid_value_labels
             }
-            summary, l, predictions_valid = sess.run(
-                [merged, loss, train_prediction], feed_dict=feed_dict_valid)
-            test_writer.add_summary(summary, step)
 
+            summary, this_validation_loss, predictions_valid = sess.run(
+                [merged, loss, train_prediction], feed_dict=feed_dict_valid)
+
+            test_writer.add_summary(summary, global_step)
+            print('validation loss at step %d: %f' % (step,
+                                                      this_validation_loss))
             print('Validation accuracy: %.1f%%' % accuracy(
-                predictions_valid, batch_valid_labels))
-        # save progress every 500 iterations
-        if step % 10 == 0 and step > 0:
-            print("saving model")
-            saver.save(
-                sess,
-                constants.CHECKPOINT_DIRECTORY + '/chess-dqn',
-                global_step=global_step)
+                predictions_valid, batch_valid_policy_labels))
+
+            if this_validation_loss < best_validation_loss:
+                print(colored("saving model", "green"))
+                saver.save(
+                    sess,
+                    constants.CHECKPOINT_DIRECTORY + '/chess-dqn',
+                    global_step=global_step)
+                best_validation_loss = this_validation_loss
 
 
 if __name__ == '__main__':

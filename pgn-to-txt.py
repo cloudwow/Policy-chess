@@ -2,6 +2,7 @@ import fnmatch
 import os
 import numpy as np
 import chess.pgn
+import encoder
 
 
 def replace_tags(board):
@@ -29,62 +30,57 @@ def find_files(directory, pattern='*.pgn'):
 
 
 def load_generic_text(directory):
+    rows = set()
     '''Generator that yields text raw from the directory.'''
     files = find_files(directory)
     for filename in files:
-        load_one_file(filename)
+        rows = load_one_file(filename, rows)
         yield filename
 
 
-def load_one_file(filename):
-    text = ""
-    k = 0
+total_rows_count = 0
+
+
+def load_one_file(filename, rows):
+    global total_rows_count
     pgn = open(filename)
     for offset, headers in chess.pgn.scan_headers(pgn):
         pgn.seek(offset)
         game = chess.pgn.read_game(pgn)
+        result = game.headers["Result"]
+        if result == "1-0":
+            value = 1.0
+        elif result == "0-1":
+            value = 0.0
+        elif result == "1/2-1/2":
+            value = 0.5
+        else:
+            print "game has no winner: " + result
+            continue
         node = game
-        nm = 1
         while not node.is_end():
             board_fen = replace_tags(node.board().fen())
             next_node = node.variation(0)
-            label_san = node.board().san(next_node.move)
-            text += board_fen + ":" + label_san + "\n"
-            nm += 1
-            node = next_node
-        if k % 1000 == 0 and k > 1:
-            print("Saving file: " + filename + "-" + str(k) + ".txt")
-            y = []
-            for index, item in enumerate(text):
-                y.append(text[index])
-            y = np.array(y)
-            np.savetxt(
-                filename + "-" + str(k) + ".txt",
-                y.reshape(1, y.shape[0]),
-                delimiter="",
-                newline="\n",
-                fmt="%s")
-            text = ""
-        k += 1
-    if len(text) > 0:
-        print("Saving file: " + filename + "-" + str(k) + ".txt")
 
-        y = []
-        for index, item in enumerate(text):
-            y.append(text[index])
-        y = np.array(y)
-        np.savetxt(
-            filename + "-" + str(k) + ".txt",
-            y.reshape(1, y.shape[0]),
-            delimiter="",
-            newline="\n",
-            fmt="%s")
-        text = ""
+            one_hot_index = encoder.one_hot_index_from_move(next_node.move)
+            row = board_fen + ":" + str(one_hot_index) + ":" + str(value)
+            rows.add(row)
+            total_rows_count += 1
+            node = next_node
+            if len(rows) >= 10000:
+                out_name = "examples/examples_{0:08d}.txt".format(
+                    total_rows_count)
+                print("Saving file: " + out_name)
+                np.savetxt(
+                    out_name, list(rows), delimiter="", newline="\n", fmt="%s")
+                rows = set()
+
     pgn.close()
+    return rows
 
 
 def main():
-    iterator = load_generic_text("./datasets/k")
+    iterator = load_generic_text("./datasets")
     for filename in iterator:
         print("Done with ", filename)
     #load_one_file("./datasets/all.pgn")

@@ -53,42 +53,67 @@ def model(batch_size, is_training):
                constants.FEATURE_PLANES))
 
     net = data_placeholder
+    with tf.name_scope("first_layer"):
 
-    # hidden layers
-    for i in range(0, 4):
+        net = tf_utils.conv2d(net, 256, [3, 3], "first_layer")
+        net = tf_utils.batch_norm_layer(
+            net, is_training, decay=0.95, scope="first_layer_batch_n0rm_")
+        net = tf.nn.relu(net)
+
+    for i in range(0, 8):
         with tf.name_scope("module_" + str(i)):
-            with tf.name_scope("branch_1_" + str(i)):
-                branch_1 = net
-                for j in range(0, 3):
+            branches = []
 
-                    branch_1 = tf_utils.conv2d(branch_1, 64, [3, 3], "branch_1")
-            with tf.name_scope("branch_2_" + str(i)):
+            with tf.name_scope("branch_skip_" + str(i)):
+                skip_branch = tf_utils.conv2d(net, 64, [1, 1], "skip_conv_1x1")
+                branches.append(skip_branch)
 
-                branch_2 = net
-                for j in range(0, 3):
-                    with tf.name_scope(
-                            "barnch_2_conv_" + str(j) + "_" + str(i)):
-                        branch_2 = tf_utils.conv2d(branch_2, 192, [8, 8],
-                                                   "conv")
+            with tf.name_scope("branch_0_" + str(i)):
+                net = tf_utils.conv2d(net, 256, [3, 3], "first_layer")
+                net = tf_utils.batch_norm_layer(
+                    net,
+                    is_training,
+                    decay=0.95,
+                    scope="first_layer_batch_n0rm_" + str(i))
+                net = tf.nn.relu(net)
+                net = tf_utils.conv2d(net, 256, [3, 3], "second_layer")
+                net = tf_utils.batch_norm_layer(
+                    net,
+                    is_training,
+                    decay=0.95,
+                    scope="scond_layer_batch_n0rm_" + str(i))
+                branches.append(net)
+            net = tf.concat(axis=3, values=branches)
+            net = tf.nn.relu(net)
 
-                        branch_2 = tf_utils.batch_norm_layer(
-                            branch_2,
-                            is_training,
-                            decay=0.9,
-                            scope="branch_2_batchnorm_" + str(j) + "_" + str(i))
-                        branch_2 = tf.nn.relu(branch_2)
-            net = tf.concat(axis=3, values=[branch_1, branch_2])
-
-    net = tf_utils.flatten(net)
-    with tf.name_scope("fc_1"):
-        net = tf.nn.relu(tf_utils.dense_layer(net, constants.HIDDEN))
+    return data_placeholder, policy_head(net, is_training), value_head(
+        net, is_training)
 
 
-#    with tf.name_scope("fc_1"):
-#        h_flat = tf.reshape(h_conv3, [-1, constants.HIDDEN])
-#        h_fc1 = tf.nn.relu(tf.matmul(h_flat, W_fc1) + b_fc1)
+def value_head(net, is_training):
+    with tf.name_scope("value_head"):
 
-# readout layer
-    logits = tf_utils.dense_layer(net, constants.LABEL_SIZE)
+        net = tf_utils.conv2d(net, 128, [1, 1], "1x1_reduce")
+        net = tf_utils.batch_norm_layer(
+            net, is_training, decay=0.95, scope="value_bn")
+        net = tf.nn.relu(net)
 
-    return data_placeholder, logits
+        net = tf_utils.flatten(net)
+        with tf.name_scope("fc_1"):
+            net = tf.nn.relu(tf_utils.dense_layer(net, 20))
+
+        net = tf_utils.dense_layer(net, 1)
+        return net
+
+
+def policy_head(net, is_training):
+    with tf.name_scope("policy_head"):
+
+        net = tf_utils.conv2d(net, 128, [1, 1], "1x1_reduce")
+        net = tf_utils.batch_norm_layer(
+            net, is_training, decay=0.95, scope="policy_bn")
+        net = tf.nn.relu(net)
+
+        net = tf_utils.flatten(net)
+        logits = tf_utils.dense_layer(net, constants.LABEL_SIZE)
+        return logits

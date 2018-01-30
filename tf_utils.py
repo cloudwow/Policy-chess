@@ -126,7 +126,6 @@ def dense_layer(net, size):
         tf.truncated_normal([flat_size, size], stddev=0.1), name='dense_weight')
     net = tf.matmul(net, wd1b) + bd1b
 
-    net = tf.nn.relu(net)
     return net
 
 
