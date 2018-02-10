@@ -4,7 +4,7 @@ FEATURE_PLANES = 8
 LABEL_SIZE = 4096
 FILTERS = 128
 HIDDEN = 512
-CHECKPOINT_DIRECTORY = "checkpoint"
+CHECKPOINT_DIRECTORY = "slow_policy_checkpoint"
 LOGDIR = LOGGING_DIRECTORY = "logdir"
 TRAIN_DIRECTORY = './data_train'
 VALIDATION_DIRECTORY = './data_validation'

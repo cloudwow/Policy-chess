@@ -45,7 +45,16 @@ def conv2d(x, W, stride):
     return tf.nn.conv2d(x, W, strides=[1, stride, stride, 1], padding="SAME")
 
 
-def model(batch_size, is_training):
+def model(batch_size, is_training, residual_layer_count=8, prefix=None):
+    if prefix:
+        with tf.variable_scope(prefix):
+
+            return model_impl(batch_size, is_training, residual_layer_count)
+    else:
+        return model_impl(batch_size, is_training, residual_layer_count)
+
+
+def model_impl(batch_size, is_training, residual_layer_count=8):
     # network weights
     data_placeholder = tf.placeholder(
         tf.float32,
@@ -60,7 +69,7 @@ def model(batch_size, is_training):
             net, is_training, decay=0.95, scope="first_layer_batch_n0rm_")
         net = tf.nn.relu(net)
 
-    for i in range(0, 8):
+    for i in range(0, residual_layer_count):
         with tf.name_scope("module_" + str(i)):
             branches = []
 

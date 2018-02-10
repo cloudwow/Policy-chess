@@ -20,7 +20,8 @@ tf_policy_labels = tf.placeholder(
 tf_value_labels = tf.placeholder(tf.float32, shape=(constants.BATCH_SIZE, 1))
 
 # Training computation.
-tf_train_dataset, policy_logits, value = model.model(constants.BATCH_SIZE, True)
+tf_train_dataset, policy_logits, value = model.model(constants.BATCH_SIZE, True,
+                                                     2)
 with tf.name_scope('cross_entropy'):
 
     with tf.name_scope('policy'):
@@ -28,22 +29,22 @@ with tf.name_scope('cross_entropy'):
             logits=policy_logits, labels=tf_policy_labels)
         with tf.name_scope('policy_total'):
             policy_loss = tf.reduce_mean(policy_diff)
-    with tf.name_scope('value'):
-        value_loss = tf.losses.absolute_difference(value, tf_value_labels, 20.0)
+    # with tf.name_scope('value'):
+    #     value_loss = tf.losses.absolute_difference(value, tf_value_labels, 20.0)
 
-    with tf.name_scope('loss_sum'):
-        loss = tf.add(policy_loss, value_loss)
+    # with tf.name_scope('loss_sum'):
+    #     total_loss = tf.add(policy_loss, value_loss)
 global_step_tensor = tf.Variable(0, name='global_step', trainable=False)
 
-tf.summary.scalar('total_loss', loss)
+#tf.summary.scalar('total_loss', loss)
 tf.summary.scalar('policy_loss', policy_loss)
-tf.summary.scalar('value_loss', value_loss)
+#tf.summary.scalar('value_loss', value_loss)
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 with tf.control_dependencies(update_ops):
     optimizer = tf.train.AdamOptimizer(
         learning_rate=0.0001, epsilon=0.1).minimize(
-            loss, global_step=global_step_tensor)
+            policy_loss, global_step=global_step_tensor)
 
 # optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
 
@@ -91,7 +92,7 @@ def main():
         for plane, policy_label, value_label in train_dataset:
             batch_data.append(plane)
             policy_labels.append(policy_label)
-            value_labels.append([value_label])
+#            value_labels.append([value_label])
         if len(batch_data) != constants.BATCH_SIZE:
             print("bad sizes train dataset")
             print(len(batch_data))
@@ -100,23 +101,17 @@ def main():
         feed_dict = {
             tf_train_dataset: batch_data,
             tf_policy_labels: policy_labels,
-            tf_value_labels: value_labels
+            #           tf_value_labels: value_labels
         }
-        summary, _, l, vl, pl, predictions = sess.run(
-            [
-                merged, optimizer, loss, value_loss, policy_loss,
-                train_prediction
-            ],
+        summary, _, l, predictions = sess.run(
+            [merged, optimizer, policy_loss, train_prediction],
             feed_dict=feed_dict)
         global_step = tf.train.global_step(sess, global_step_tensor)
         train_writer.add_summary(summary, global_step)
         #        print("global step: %d" % global_step)
         if (step % 50 == 0 and step > 0):
 
-            print(colored('Minibatch total loss at step %d: %f' % (step, l),
-                          "cyan"))
-            print('Minibatch value loss at step %d: %f' % (step, vl))
-            print('Minibatch policy loss at step %d: %f' % (step, pl))
+            print(colored('Minibatch loss at step %d: %f' % (step, l), "cyan"))
             print('Minibatch accuracy: %.1f%%' % accuracy(
                 predictions, policy_labels))
 
@@ -128,7 +123,9 @@ def main():
             for plane, policy_label, value_label in validation_dataset:
                 batch_valid_data.append(plane)
                 batch_valid_policy_labels.append(policy_label)
-                batch_valid_value_labels.append([value_label])
+
+
+#               batch_valid_value_labels.append([value_label])
             if len(batch_valid_data) != constants.BATCH_SIZE:
                 print("bad sizes validation dataset")
                 print(len(batch_valid_data))
@@ -136,11 +133,12 @@ def main():
             feed_dict_valid = {
                 tf_train_dataset: batch_valid_data,
                 tf_policy_labels: batch_valid_policy_labels,
-                tf_value_labels: batch_valid_value_labels
+                #                tf_value_labels: batch_valid_value_labels
             }
 
             summary, this_validation_loss, predictions_valid = sess.run(
-                [merged, loss, train_prediction], feed_dict=feed_dict_valid)
+                [merged, policy_loss, train_prediction],
+                feed_dict=feed_dict_valid)
 
             test_writer.add_summary(summary, global_step)
             print('validation loss at step %d: %f' % (step,
@@ -155,7 +153,6 @@ def main():
                     constants.CHECKPOINT_DIRECTORY + '/chess-dqn',
                     global_step=global_step)
                 best_validation_loss = this_validation_loss
-
 
 if __name__ == '__main__':
     main()
