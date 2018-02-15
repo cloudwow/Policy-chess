@@ -19,7 +19,8 @@ class Arena:
         white_player = self.player_1
         black_player = self.player_2
         for game_index in range(0, how_many):
-            saver = tf.train.Saver()
+            if self.sess:
+                saver = tf.train.Saver()
             board = chess.Board()
 
             self.quit = False
@@ -32,7 +33,7 @@ class Arena:
                 move = white_player.get_move(board)
 
                 board.push(move)
-                #boards.dump(board)
+                boards.dump(board)
 
                 if not board.is_game_over():
                     # we move now
@@ -40,7 +41,7 @@ class Arena:
                     move = black_player.get_move(board)
                     board.push(move)
 
-                    #boards.dump(board)
+                    boards.dump(board)
 
             boards.dump(board)
 

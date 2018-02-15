@@ -10,6 +10,19 @@ def string_rep(board):
     return board.fen()
 
 
+def game_value(board, player):
+    if board.result() == "1-0":
+        result = 1.0
+    elif board.result() == "0-1":
+        result = -1.0
+    else:
+        result = board_value(board)
+
+    if player == chess.BLACK:
+        result = -result
+    return result
+
+
 def winner(board):
     if board.is_game_over():
         if board.result == "1-0":
@@ -61,7 +74,8 @@ def board_value(board):
             if piece and piece.color == chess.BLACK:
                 piece_value = -piece_value
             value += piece_value
-    return value
+    # normalize within [-1,1]
+    return value / 50.0
 
 
 def dump(board):

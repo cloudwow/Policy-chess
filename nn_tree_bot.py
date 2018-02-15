@@ -11,15 +11,14 @@ import model
 import constants
 import chess
 import encoder
+from mcts import MCTS
 
 
-class Bot:
+class NNTreeBot:
 
-    def __init__(self, sess, name, max_depth, max_width):
+    def __init__(self, sess, name):
         self.name = name
         self.sess = sess
-        self.max_depth = max_depth
-        self.max_width = max_width
         self.tf_prediction, self.policy_logits, self.value = model.model(
             1, False, prefix=name)
         # Predictions for the model.
@@ -29,6 +28,7 @@ class Bot:
         self.saver = tf.train.Saver()
 
         self.rename(constants.CHECKPOINT_DIRECTORY, name)
+        self.mcts = MCTS(self, 200, 0)
 
     def replace_tags(self, board):
         board_san = board.split(" ")[0]
@@ -95,49 +95,9 @@ class Bot:
                              constants.FEATURE_PLANES))
         return planes
 
-    # def board_value(self, board, color):
-    #     # We get the movement prediction
-    #     game_state = self.reformat(board.fen())
-    #     feed_dict = {self.tf_prediction: game_state}
-    #     result_value = self.sess.run([self.value], feed_dict=feed_dict)[0][0][0]
-    #     #print("value = " + str(result_value))
-    #     if color == chess.BLACK:
-    #         result_value = -result_value
-    #     return result_value
-
-    def recurse_value(self, board, depth=0):
-
-        whose_turn = board.turn
-        best_move = None
-        best_value = -99999.0
-        count = 0
-        value = 0
-        moves, board_value = self.get_policy_moves(board)
-        if board.turn == chess.BLACK:
-            board_value = -board_value
-        n = 1.0
-        if depth == self.max_depth:
-            return None, board_value
-        for move in moves:
-            move = move[0]
-            board.push(move)
-            _, value = self.recurse_value(board, depth=depth + 1)
-            value = -value
-            board_value += value
-            n += 1.0
-            if best_move == None or value > best_value:
-                best_move = move
-                best_value = value
-            board.pop()
-            count += 1
-            if count >= self.max_width:
-                break
-        board_value /= n
-        return best_move, best_value
-
     def get_move(self, board):
-        move, _ = self.recurse_value(board)
-        return move
+        move_index = np.argmax(self.mcts.getActionProb(board, temp=0))
+        return encoder.move_from_one_hot_index(move_index)
 
     def predict(self, board):
         game_state = self.reformat(board.fen())
@@ -148,35 +108,6 @@ class Bot:
         board_value = board_value[0][0]
         return policy_actions, board_value
 
-    def get_policy_moves(self, board):
-        # We get the movement prediction
-        game_state = self.reformat(board.fen())
-        feed_dict = {self.tf_prediction: game_state}
-        predictions, board_value = self.sess.run(
-            [self.policy, self.value], feed_dict=feed_dict)
-        predictions = predictions[0]
-        board_value = board_value[0][0]
-
-        #print(len(predictions[0][0]))
-        legal_moves = []
-        derp = {}
-        # for i in range(0, constants.LABEL_SIZE):
-        #     policy_value = predictions[0][0][i]
-        #     if policy_value > 0.0:
-        #         move = encoder.move_from_one_hot_index(i)
-        #         print("OMG", move, policy_value)
-        for move in board.legal_moves:
-            policy_value = predictions[encoder.one_hot_index_from_move(move)]
-            #        if policy_value != 0.0:
-            #            print(move, policy_value)
-            derp[move] = policy_value
-
-        result = sorted(derp.iteritems(), key=lambda (k, v): (-v, k))
-        #   print("******************************")
-        # for k, v in result:
-        #     print(k, v)
-        return result, board_value
-
     def rename(self, checkpoint_dir, add_prefix, dry_run=False):
         checkpoint = tf.train.get_checkpoint_state(checkpoint_dir)
         for var_name, _ in tf.contrib.framework.list_variables(checkpoint_dir):
@@ -185,6 +116,7 @@ class Bot:
 
             new_name = add_prefix + "/" + var_name
 
+            print('Renaming %s to %s.' % (var_name, new_name))
             # Rename the variable
             var = tf.Variable(var, name=new_name)
 

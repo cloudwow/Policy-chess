@@ -1,127 +1,96 @@
-from __future__ import print_function
+from __future__ import division
 
-import os
-import fnmatch
-import numpy as np
-import tensorflow as tf
+import sys
+import time
+from math import log, sqrt
+import random
 
-import atexit
-import tensorflow as tf
-import model
-import constants
 import chess
-import encoder
-from mcts import MCTS
+
+import boards
 
 
-class TreeBot:
+class Node(object):
 
-    def __init__(self, sess, name):
-        self.name = name
-        self.sess = sess
-        self.tf_prediction, self.policy_logits, self.value = model.model(
-            1, False, prefix=name)
-        # Predictions for the model.
-        self.policy = tf.nn.softmax(self.policy_logits)
+    def __init__(self, board, parent_node, move=None):
+        if move:
+            board.push(move)
+        self.fen = board.fen()
+        self.move = move
+        self.my_player = board.turn
+        self.parent_node = parent_node
 
-        # Initialize session all variables
-        self.saver = tf.train.Saver()
+        if boards.is_game_over(board):
+            self.game_over_value = boards.game_value(board, self.my_player)
+        else:
+            self.game_over_value = None
+        self.games_evaluated = 0.0
+        self.total_value = 0.0
+        self.children = None
+        if move:
+            board.pop()
 
-        self.rename(constants.CHECKPOINT_DIRECTORY, name)
-        self.mcts = MCTS(self, 200, 0)
+    def expand(self, temperature):
+        if self.game_over_value != None:
+            self.add_game_value(self.game_over_value)
+            return
 
-    def replace_tags(self, board):
-        board_san = board.split(" ")[0]
-        board_san = board_san.replace("2", "11")
-        board_san = board_san.replace("3", "111")
-        board_san = board_san.replace("4", "1111")
-        board_san = board_san.replace("5", "11111")
-        board_san = board_san.replace("6", "111111")
-        board_san = board_san.replace("7", "1111111")
-        board_san = board_san.replace("8", "11111111")
-        for i in range(len(board.split(" "))):
-            if i > 0 and board.split(" ")[i] != '':
-                board_san += " " + board.split(" ")[i]
-        return board_san
+        if self.games_evaluated == 0:
+            # the first time just play out
+            self.playout()
 
-    def reformat(self, game):
-        board_state = self.replace_tags(game.replace("/", ""))
-        # All pieces plane
-        board_pieces = list(board_state.split(" ")[0])
-        board_pieces = [ord(val) for val in board_pieces]
-        board_pieces = np.reshape(board_pieces,
-                                  (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
-        # Only spaces plane
-        board_blank = [int(val == '1') for val in board_state.split(" ")[0]]
-        board_blank = np.reshape(board_blank,
-                                 (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
-        # Only white plane
-        board_white = [int(val.isupper()) for val in board_state.split(" ")[0]]
-        board_white = np.reshape(board_white,
-                                 (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
-        # Only black plane
-        board_black = [
-            int(not val.isupper() and val != '1')
-            for val in board_state.split(" ")[0]
-        ]
-        board_black = np.reshape(board_black,
-                                 (constants.IMAGE_SIZE, constants.IMAGE_SIZE))
-        # One-hot integer plane current player turn
-        current_player = board_state.split(" ")[1]
-        current_player = np.full(
-            (constants.IMAGE_SIZE, constants.IMAGE_SIZE),
-            int(current_player == 'w'),
-            dtype=int)
-        # One-hot integer plane extra data
-        extra = board_state.split(" ")[4]
-        extra = np.full(
-            (constants.IMAGE_SIZE, constants.IMAGE_SIZE), int(extra), dtype=int)
-        # One-hot integer plane move number
-        move_number = board_state.split(" ")[5]
-        move_number = np.full(
-            (constants.IMAGE_SIZE, constants.IMAGE_SIZE),
-            int(move_number),
-            dtype=int)
-        # Zeros plane
-        zeros = np.full(
-            (constants.IMAGE_SIZE, constants.IMAGE_SIZE), 0, dtype=int)
+        else:
+            # after the first we start expanding children
+            if self.children == None:
+                board = chess.Board(self.fen)
+                self.children = [
+                    Node(board, self, move=m) for m in board.legal_moves
+                ]
 
-        planes = np.vstack((np.copy(board_pieces), np.copy(board_white),
-                            np.copy(board_black), np.copy(board_blank),
-                            np.copy(current_player), np.copy(extra),
-                            np.copy(move_number), np.copy(zeros)))
-        planes = np.reshape(planes,
-                            (1, constants.IMAGE_SIZE, constants.IMAGE_SIZE,
-                             constants.FEATURE_PLANES))
-        return planes
+            self.choose_best_child(temperature).expand(temperature)
+
+    def choose_best_child(self, temperature):
+        # return highest UCB1
+        return max(self.children, key=lambda x: x.UCB1(temperature))
+
+    def playout(self):
+        board = chess.Board(self.fen)
+        i = 0
+        while i < 80 and not boards.is_game_over(board):
+            board.push(random.choice(list(board.legal_moves)))
+            i += 1
+        self.add_game_value(-boards.game_value(board, self.my_player))
+
+    def add_game_value(self, game_value):
+        self.total_value += game_value
+        self.games_evaluated += 1.0
+        if self.parent_node:
+            self.parent_node.add_game_value(-game_value)
+
+    def average_value(self):
+        """ returns average value of explored games """
+        if self.games_evaluated == 0:
+            return 0.0
+        return self.total_value / self.games_evaluated
+
+    def UCB1(self, temperature):
+        """ returns average value of explored games """
+        if self.games_evaluated == 0:
+            return sys.float_info.max
+        return self.average_value() + temperature * (
+            log(self.parent_node.games_evaluated) / self.games_evaluated)
+
+
+class TreeBot(object):
+
+    def __init__(self, calculation_time=30, max_actions=4000, temperature=1.4):
+
+        self.calculation_time = calculation_time
+        self.max_actions = max_actions
 
     def get_move(self, board):
-        move_index = np.argmax(self.mcts.getActionProb(board, temp=0))
-        return encoder.move_from_one_hot_index(move_index)
+        root_node = Node(board, None, None)
 
-    def predict(self, board):
-        game_state = self.reformat(board.fen())
-        feed_dict = {self.tf_prediction: game_state}
-        predictions, board_value = self.sess.run(
-            [self.policy, self.value], feed_dict=feed_dict)
-        policy_actions = predictions[0]
-        board_value = board_value[0][0]
-        return policy_actions, board_value
-
-    def rename(self, checkpoint_dir, add_prefix, dry_run=False):
-        checkpoint = tf.train.get_checkpoint_state(checkpoint_dir)
-        for var_name, _ in tf.contrib.framework.list_variables(checkpoint_dir):
-            # Load the variable
-            var = tf.contrib.framework.load_variable(checkpoint_dir, var_name)
-
-            new_name = add_prefix + "/" + var_name
-
-            print('Renaming %s to %s.' % (var_name, new_name))
-            # Rename the variable
-            var = tf.Variable(var, name=new_name)
-
-            # if not dry_run:
-            #     # Save the variables
-            #     saver = tf.train.Saver()
-            #     sess.run(tf.global_variables_initializer())
-            #     saver.save(sess, checkpoint.model_checkpoint_path)
+        for i in xrange(self.max_actions):
+            root_node.expand(2.0)
+        return root_node.choose_best_child(0.0).move
