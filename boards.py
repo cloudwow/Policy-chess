@@ -39,7 +39,7 @@ def winner(board):
 
 
 def is_game_over(board):
-    return board.is_game_over() or board.fullmove_number > 50
+    return board.is_game_over()
 
 
 def valid_moves_vector(board):

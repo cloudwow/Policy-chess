@@ -42,6 +42,8 @@ class Arena:
                     board.push(move)
 
                     boards.dump(board)
+                    print("player_1:{0}, player_2:{1},  draws:{2}".format(
+                        player_1_wins, player_2_wins, draws))
 
             boards.dump(board)
 
