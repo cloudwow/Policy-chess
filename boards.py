@@ -50,7 +50,7 @@ def valid_moves_vector(board):
     return result
 
 
-def board_value(board):
+def board_value(board, player=chess.WHITE):
     value = 0.0
     for x in range(0, 8):
         for y in range(0, 8):
@@ -71,7 +71,7 @@ def board_value(board):
             elif piece.piece_type == chess.KING:
                 piece_value = 9999.0
 
-            if piece and piece.color == chess.BLACK:
+            if piece and piece.color != player:
                 piece_value = -piece_value
             value += piece_value
     # normalize within [-1,1]

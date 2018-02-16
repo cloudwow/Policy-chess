@@ -19,14 +19,14 @@ class Node(object):
         self.move = move
         self.my_player = board.turn
         self.parent_node = parent_node
+        self.children = None
 
         if boards.is_game_over(board):
-            self.game_over_value = boards.game_value(board, self.my_player)
+            self.game_over_value = -boards.game_value(board, self.my_player)
         else:
             self.game_over_value = None
-        self.games_evaluated = 0.0
-        self.total_value = 0.0
-        self.children = None
+            self.games_evaluated = 1.0
+            self.total_value = -boards.board_value(board, self.my_player)
         if move:
             board.pop()
 
@@ -35,7 +35,7 @@ class Node(object):
             self.add_game_value(self.game_over_value)
             return
 
-        if self.games_evaluated == 0:
+        if self.games_evaluated <= 1:
             # the first time just play out
             self.playout()
 
@@ -43,13 +43,20 @@ class Node(object):
             # after the first we start expanding children
             if self.children == None:
                 board = chess.Board(self.fen)
-                self.children = [Node(board, self, move=m) for m in board.legal_moves]
+                self.children = [
+                    Node(board, self, move=m) for m in board.legal_moves
+                ]
 
-            self.choose_best_child(temperature).expand(temperature)
+            self.choose_child_for_expand(temperature).expand(temperature)
 
-    def choose_best_child(self, temperature):
+    def choose_child_for_expand(self, temperature):
         # return highest UCB1
-        return max(self.children, key=lambda x: x.UCB1(temperature))
+        return max(
+            self.non_terminal_children(), key=lambda x: x.UCB1(temperature))
+
+    def choose_best_child(self):
+        # return highest UCB1
+        return max(self.children, key=lambda x: x.UCB1(0.0))
 
     def playout(self):
         board = chess.Board(self.fen)
@@ -73,15 +80,23 @@ class Node(object):
 
     def UCB1(self, temperature):
         """ returns average value of explored games """
+        if self.is_terminal_node():
+            return self.game_over_value
         if self.games_evaluated == 0:
             return sys.float_info.max
         return self.average_value() + temperature * (
             log(self.parent_node.games_evaluated) / self.games_evaluated)
 
+    def non_terminal_children(self):
+        return filter(lambda x: x.is_terminal_node() == False, self.children)
+
+    def is_terminal_node(self):
+        return self.game_over_value != None
+
 
 class TreeBot(object):
 
-    def __init__(self, calculation_time=30, max_actions=4000, temperature=1.4):
+    def __init__(self, calculation_time=10, max_actions=4000, temperature=1.4):
 
         self.calculation_time = calculation_time
         self.max_actions = max_actions
@@ -92,4 +107,4 @@ class TreeBot(object):
         while now - start_time < 15.0:
             root_node.expand(0.3)
             now = time.time()
-        return root_node.choose_best_child(0.0).move
+        return root_node.choose_best_child().move

@@ -2,6 +2,7 @@
 #import pieces
 import chess
 import bot
+from tree_bot import TreeBot
 import Tkinter as tk
 from PIL import Image, ImageTk
 
@@ -24,7 +25,7 @@ class BoardGuiTk(tk.Frame):
         return (self.columns * self.square_size, self.rows * self.square_size)
 
     def __init__(self, parent, chessboard, square_size=128):
-
+        self.bot = TreeBot(calculation_time=30)
         self.chessboard = chessboard
         self.square_size = square_size
         self.parent = parent
@@ -102,7 +103,7 @@ class BoardGuiTk(tk.Frame):
         self.bot_move()
 
     def bot_move(self):
-        move = bot.get_move(self.chessboard)
+        move = self.bot.get_move(self.chessboard)
         self.hilighted = [move.from_square, move.to_square]
         self.chessboard.push(move)
         self.draw_pieces()
