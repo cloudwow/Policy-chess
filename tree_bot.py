@@ -43,9 +43,7 @@ class Node(object):
             # after the first we start expanding children
             if self.children == None:
                 board = chess.Board(self.fen)
-                self.children = [
-                    Node(board, self, move=m) for m in board.legal_moves
-                ]
+                self.children = [Node(board, self, move=m) for m in board.legal_moves]
 
             self.choose_best_child(temperature).expand(temperature)
 
@@ -90,7 +88,8 @@ class TreeBot(object):
 
     def get_move(self, board):
         root_node = Node(board, None, None)
-
-        for i in xrange(self.max_actions):
-            root_node.expand(2.0)
+        now = start_time = time.time()
+        while now - start_time < 15.0:
+            root_node.expand(0.3)
+            now = time.time()
         return root_node.choose_best_child(0.0).move
